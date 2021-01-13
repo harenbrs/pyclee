@@ -286,7 +286,7 @@ class DyClee:
                     continue
                 
                 if self.context.distance_index == SpatialIndexMethod.RTREE:
-                    matches = [
+                    matches: list[MicroCluster] = [
                         self.µcluster_map[_hash]
                         for _hash in self.rtree.nearest((*element, *element), 1)
                         if self.µcluster_map[_hash].is_reachable(element)
