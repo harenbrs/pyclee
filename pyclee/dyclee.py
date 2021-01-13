@@ -164,11 +164,11 @@ class DyCleeContext:
         ):
             raise ImportError("could not import KDTree from package scikit-learn")
         
+        self.maintain_rtree = SpatialIndexMethod.RTREE in (
+            self.distance_index,
+            self.density_index
+        )
         self.store_elements = store_elements
-    
-    @property
-    def maintain_rtree(self):
-        return SpatialIndexMethod.RTREE in (self.distance_index, self.density_index)
     
     def update_feature_ranges(self, element: Element):
         self.feature_ranges[:, 0] = np.minimum(self.feature_ranges[:, 0], element)
