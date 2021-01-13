@@ -5,9 +5,9 @@ import warnings
 import numpy as np
 
 try:
-    from tqdm.auto import trange
+    from tqdm.auto import tqdm
 except ImportError:
-    trange = range
+    tqdm = None
 
 try:
     from ordered_set_37 import OrderedSet as Set
@@ -464,10 +464,16 @@ class DyClee:
         return clusters
     
     def run(
-        self, elements: Iterable[Element], times: Optional[Iterable[Timestamp]] = None
+        self,
+        elements: Iterable[Element],
+        times: Optional[Iterable[Timestamp]] = None,
+        progress: bool = True
     ) -> Optional[list[Cluster]]:
+        if progress and tqdm is not None:
+            elements = tqdm(elements)
+        
         if times is None:
-            times = trange(len(elements))
+            times = range(len(elements))
         
         clusters = None
         
