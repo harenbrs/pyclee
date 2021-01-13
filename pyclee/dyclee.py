@@ -261,7 +261,7 @@ class DyClee:
         
         assert n_µclusters == len(self.all_µclusters)
     
-    def distance_step(self, element: Element, time: Timestamp):
+    def distance_step(self, element: Element, time: Timestamp) -> MicroCluster:
         if self.context.update_ranges:
             self.context.update_feature_ranges(element)
         
@@ -274,8 +274,10 @@ class DyClee:
                 # Add microcluster to R*-tree
                 self.µcluster_map[hash(µcluster)] = µcluster
                 self.rtree.insert(hash(µcluster), µcluster.bounding_box)
+            
+            return µcluster
         else:
-            closest = None
+            closest: MicroCluster = None
             
             for candidate_µclusters in self.active_µclusters, self.outlier_µclusters:
                 # First search actives, then others for reachable microclusters
@@ -358,6 +360,8 @@ class DyClee:
                 if self.context.maintain_rtree:
                     # Add modified microcluster to R*-tree
                     self.rtree.insert(hash(closest), closest.bounding_box)
+                
+                return closest
             else:
                 # Create new microcluster
                 µcluster = MicroCluster(element, time, context=self.context)
@@ -367,8 +371,10 @@ class DyClee:
                     # Add microcluster to R*-tree
                     self.µcluster_map[hash(µcluster)] = µcluster
                     self.rtree.insert(hash(µcluster), µcluster.bounding_box)
+                
+                return µcluster
     
-    def global_density_step(self) -> list[Cluster]:
+    def global_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
         # NOTE: Deviates from the paper's apparently inconsistent Algorithm 2.
         
         self.update_density_partitions()
@@ -432,28 +438,31 @@ class DyClee:
         for µcluster in unclustered:
             µcluster.label = None
         
-        return clusters
+        return clusters, unclustered
     
-    def local_density_step(self) -> list[Cluster]:
+    def local_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
         raise NotImplementedError("TODO")
     
-    def step(self, element: Element, time: Timestamp) -> Optional[list[Cluster]]:
-        self.distance_step(element, time)
+    def step(
+        self, element: Element, time: Timestamp
+    ) -> tuple[MicroCluster, Optional[list[Cluster]], Optional[Set[MicroCluster]]]:
+        µcluster = self.distance_step(element, time)
         
         if (
             self.last_density_time is None
             or time >= self.last_density_time + self.context.density_interval
         ):
             if self.context.multi_density:
-                clusters = self.local_density_step()
+                clusters, unclustered = self.local_density_step()
             else:
-                clusters = self.global_density_step()
+                clusters, unclustered = self.global_density_step()
             
             self.last_density_time = time
         else:
             clusters = None
+            unclustered = None
         
-        return clusters
+        return µcluster, clusters, unclustered
     
     def run(
         self,
@@ -470,6 +479,6 @@ class DyClee:
         clusters = None
         
         for element, time in zip(elements, times):
-            clusters = self.step(element, time) or clusters
+            clusters = self.step(element, time)[1] or clusters
         
         return clusters
