@@ -10,15 +10,6 @@ except ImportError:
     tqdm = None
 
 try:
-    from ordered_set_37 import OrderedSet as Set
-except ImportError:
-    warnings.warn(
-        "ordered_set_37 not available - falling back to built-in unordered set, expect"
-        " non-repeatability"
-    )
-    Set = set
-
-try:
     from rtree.index import Index as RTreeIndex, Property as RTreeProperty
 except ImportError:
     RTreeIndex = None
@@ -34,6 +25,7 @@ from .types import (
     Element,
     Timestamp,
     Interval,
+    Set,
     UnsupportedConfiguration,
     SpatialIndexMethod
 )
