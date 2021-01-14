@@ -53,7 +53,7 @@ class BasePlotter(ABC):
         ...
     
     def animate(
-        self, elements: Iterable[Iterable[float]], times: Iterable[Timestamp] = None
+        self, elements: Iterable[Element], times: Iterable[Timestamp] = None
     ):
         if times is None:
             times = range(len(elements))
