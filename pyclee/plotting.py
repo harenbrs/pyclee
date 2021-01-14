@@ -72,7 +72,8 @@ class BasePlotter(ABC):
         
         return anim
     
-    def plot_snapshot(self, elements: Iterable[Element], clusters: list[Cluster]):
+    @abstractmethod
+    def plot_snapshot(self, clusters: list[Cluster]):
         ...
 
 
