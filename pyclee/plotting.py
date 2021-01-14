@@ -12,10 +12,12 @@ from matplotlib.patches import Rectangle
 import seaborn as sns
 from tqdm import tqdm
 
+from .types import Set
+
 if TYPE_CHECKING:
     from .dyclee import DyClee
     from .clusters import MicroCluster, Cluster
-    from .types import Element, Timestamp, Set
+    from .types import Element, Timestamp
 
 
 __all__ = ['ElementPlotter', 'CentroidPlotter', 'BoundaryPlotter', 'MultiPlotter']
@@ -52,9 +54,7 @@ class BasePlotter(ABC):
     ):
         ...
     
-    def animate(
-        self, elements: Iterable[Element], times: Iterable[Timestamp] = None
-    ):
+    def animate(self, elements: Iterable[Element], times: Iterable[Timestamp] = None):
         if times is None:
             times = range(len(elements))
         
@@ -71,6 +71,9 @@ class BasePlotter(ABC):
         )
         
         return anim
+    
+    def plot_snapshot(self, elements: Iterable[Element], clusters: list[Cluster]):
+        ...
 
 
 class ElementPlotter(BasePlotter):
@@ -102,6 +105,31 @@ class ElementPlotter(BasePlotter):
             for µcluster in unclustered:
                 for path_collection in self.path_map[µcluster]:
                     path_collection.set_color(self.outlier_c)
+    
+    def plot_snapshot(self, clusters: list[Cluster]):
+        if not self.dyclee.context.store_elements:
+            raise ValueError(
+                "element snapshot plotting requires DyCleeContext.store_elements"
+            )
+        
+        unclustered = self.dyclee.all_µclusters
+        
+        for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+            cluster_elements: Set[Element] = Set()
+            
+            for µcluster in cluster.µclusters:
+                cluster_elements |= µcluster.elements
+            
+            unclustered -= cluster.µclusters
+            
+            self.ax.scatter(*zip(*cluster_elements), color=c, marker='.')
+        
+        unclustered_elements: Set[Element] = Set()
+        
+        for µcluster in unclustered:
+            unclustered_elements |= µcluster.elements
+        
+        self.ax.scatter(*zip(*unclustered_elements), color=self.outlier_c, marker='.')
 
 
 class CentroidPlotter(BasePlotter):
@@ -132,6 +160,24 @@ class CentroidPlotter(BasePlotter):
         if unclustered is not None:
             for µcluster in unclustered:
                 self.path_map[µcluster].set_color(self.outlier_c)
+    
+    def plot_snapshot(self, clusters: list[Cluster]):
+        unclustered = self.dyclee.all_µclusters
+        
+        for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+            unclustered -= cluster.µclusters
+            
+            self.ax.scatter(
+                *zip(*[µcluster.centroid for µcluster in cluster.µclusters]),
+                color=c,
+                marker='.'
+            )
+        
+        self.ax.scatter(
+            *zip(*[µcluster.centroid for µcluster in unclustered]),
+            color=self.outlier_c,
+            marker='.'
+        )
 
 
 class BoundaryPlotter(BasePlotter):
@@ -180,6 +226,42 @@ class BoundaryPlotter(BasePlotter):
                 self.patch_map[µcluster].set_facecolor(
                     (0, 0, 0, 0.5*µcluster.density/max_density)
                 )
+    
+    def plot_snapshot(self, clusters: list[Cluster]):
+        max_density = max([µcluster.density for µcluster in self.dyclee.all_µclusters])
+        
+        unclustered = self.dyclee.all_µclusters
+        
+        for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+            unclustered -= cluster.µclusters
+            
+            for µcluster in cluster.µclusters:
+                patch_collection = PatchCollection(
+                    [
+                        Rectangle(
+                            µcluster.centroid - µcluster.context.hyperbox_lengths/2,
+                            *µcluster.context.hyperbox_lengths
+                        )
+                    ]
+                )
+                patch_collection.set_edgecolor(c)
+                patch_collection.set_facecolor(
+                    (0, 0, 0, 0.5*µcluster.density/max_density)
+                )
+                self.ax.add_collection(patch_collection)
+        
+        for µcluster in unclustered:
+            patch_collection = PatchCollection(
+                [
+                    Rectangle(
+                        µcluster.centroid - µcluster.context.hyperbox_lengths/2,
+                        *µcluster.context.hyperbox_lengths
+                    )
+                ]
+            )
+            patch_collection.set_edgecolor(self.outlier_c)
+            patch_collection.set_facecolor((0, 0, 0, 0.5*µcluster.density/max_density))
+            self.ax.add_collection(patch_collection)
 
 
 class MultiPlotter(BasePlotter):
@@ -221,3 +303,7 @@ class MultiPlotter(BasePlotter):
     ):
         for plotter in self.plotters:
             plotter.update(element, µcluster, clusters, unclustered)
+    
+    def plot_snapshot(self, clusters: list[Cluster]):
+        for plotter in self.plotters:
+            plotter.plot_snapshot(clusters)
