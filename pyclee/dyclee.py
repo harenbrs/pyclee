@@ -176,10 +176,6 @@ class DyCleeContext:
         
         self.reachable_radius: float = np.min(self.hyperbox_lengths)/2
         
-        self.reachable_radius: float = (
-            np.sort(self.hyperbox_lengths)[self.uncommon_dimensions]/2
-        )
-        
         # L-inf distances will be compared with the `phi`th smallest length
         # NOTE: Paper Eq. 5 says /2, but that would be inconsistent with the text
         self.connected_radius: float = np.sort(self.hyperbox_lengths)[
