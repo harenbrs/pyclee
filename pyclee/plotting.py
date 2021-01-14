@@ -29,6 +29,7 @@ sns.set()
 class BasePlotter(ABC):
     cmap = cm.tab10
     outlier_c = (0.7, 0.7, 0.7, 0.8)
+    title = None
     
     def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
         assert dyclee.context.n_features == 2, "plotting only supported for 2D data"
@@ -43,6 +44,9 @@ class BasePlotter(ABC):
         
         self.ax.set_xlim(*dyclee.context.feature_ranges[0])
         self.ax.set_ylim(*dyclee.context.feature_ranges[1])
+        
+        if self.title is not None:
+            self.ax.set_title(self.title)
     
     @abstractmethod
     def update(
@@ -78,6 +82,8 @@ class BasePlotter(ABC):
 
 
 class ElementPlotter(BasePlotter):
+    title = "Samples"
+    
     def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
         super().__init__(dyclee, ax)
         
@@ -134,6 +140,8 @@ class ElementPlotter(BasePlotter):
 
 
 class CentroidPlotter(BasePlotter):
+    title = "µcluster centroids"
+    
     def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
         super().__init__(dyclee, ax)
         
@@ -182,6 +190,8 @@ class CentroidPlotter(BasePlotter):
 
 
 class BoundaryPlotter(BasePlotter):
+    title = "µcluster boundaries"
+    
     def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
         super().__init__(dyclee, ax)
         
