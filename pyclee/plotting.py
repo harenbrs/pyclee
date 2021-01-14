@@ -170,13 +170,13 @@ class CentroidPlotter(BasePlotter):
             self.ax.scatter(
                 *zip(*[µcluster.centroid for µcluster in cluster.µclusters]),
                 color=c,
-                marker='.'
+                marker='o'
             )
         
         self.ax.scatter(
             *zip(*[µcluster.centroid for µcluster in unclustered]),
             color=self.outlier_c,
-            marker='.'
+            marker='o'
         )
 
 
