@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from .types import Element, Timestamp, Set
 
 
-__all__ = ['ElementPlotter', 'CentroidPlotter', 'BoundaryPlotter']
+__all__ = ['ElementPlotter', 'CentroidPlotter', 'BoundaryPlotter', 'MultiPlotter']
 
 
 sns.set()
@@ -36,6 +36,7 @@ class BasePlotter(ABC):
         if ax is None:
             fig, ax = plt.subplots()
         
+        self.fig = ax.figure
         self.ax = ax
         
         self.ax.set_xlim(*dyclee.context.feature_ranges[0])
@@ -62,7 +63,7 @@ class BasePlotter(ABC):
             return self.update(element, *self.dyclee.step(element, time))
         
         anim = FuncAnimation(
-            self.ax.figure,
+            self.fig,
             animate,
             zip(tqdm(elements), times),
             save_count=len(elements),
@@ -179,3 +180,44 @@ class BoundaryPlotter(BasePlotter):
                 self.patch_map[µcluster].set_facecolor(
                     (0, 0, 0, 0.5*µcluster.density/max_density)
                 )
+
+
+class MultiPlotter(BasePlotter):
+    def __init__(
+        self,
+        dyclee: DyClee,
+        axes: Optional[Iterable[plt.Axes]] = None,
+        elements: bool = True,
+        centroids: bool = True,
+        boundaries: bool = True
+    ):
+        self.dyclee = dyclee
+        
+        if axes is None:
+            fig, axes = plt.subplots(
+                1, elements + centroids + boundaries, sharex=True, sharey=True
+            )
+        
+        self.fig = axes[0].figure
+        self.axes = axes
+        
+        self.plotters = []
+        
+        if elements:
+            self.plotters.append(ElementPlotter(dyclee, self.axes[len(self.plotters)]))
+        
+        if centroids:
+            self.plotters.append(CentroidPlotter(dyclee, self.axes[len(self.plotters)]))
+        
+        if boundaries:
+            self.plotters.append(BoundaryPlotter(dyclee, self.axes[len(self.plotters)]))
+    
+    def update(
+        self,
+        element: Element,
+        µcluster: MicroCluster,
+        clusters: Optional[list[Cluster]],
+        unclustered: Optional[Set[MicroCluster]]
+    ):
+        for plotter in self.plotters:
+            plotter.update(element, µcluster, clusters, unclustered)
