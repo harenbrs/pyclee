@@ -10,7 +10,7 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.collections import PathCollection, PatchCollection
 from matplotlib.patches import Rectangle
 import seaborn as sns
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from .types import Set
 
