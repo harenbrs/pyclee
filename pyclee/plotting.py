@@ -276,8 +276,10 @@ class MultiPlotter(BasePlotter):
         self.dyclee = dyclee
         
         if axes is None:
+            n_axes = elements + centroids + boundaries
+            
             fig, axes = plt.subplots(
-                1, elements + centroids + boundaries, sharex=True, sharey=True
+                1, n_axes, sharex=True, sharey=True, figsize=(4*n_axes + 1, 4)
             )
         
         self.fig = axes[0].figure
