@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from itertools import cycle
-from typing import TYPE_CHECKING, Optional, Iterable
+from typing import TYPE_CHECKING, Optional, Iterable, Union
 
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -46,7 +46,13 @@ class BasePlotter(ABC):
         self.ax.set_ylim(*dyclee.context.feature_ranges[1])
         
         if self.title is not None:
-            self.ax.set_title(self.title)
+            title = self.ax.get_title()
+            if title:
+                title += f" + {self.title}"
+            else:
+                title = self.title
+            
+            self.ax.set_title(title)
     
     @abstractmethod
     def update(
@@ -279,19 +285,21 @@ class MultiPlotter(BasePlotter):
     def __init__(
         self,
         dyclee: DyClee,
-        axes: Optional[Iterable[plt.Axes]] = None,
+        axes: Optional[Union[Iterable[plt.Axes], plt.Axes]] = None,
         elements: bool = True,
         centroids: bool = True,
         boundaries: bool = True
     ):
         self.dyclee = dyclee
         
+        n_plots = elements + centroids + boundaries
+        
         if axes is None:
-            n_axes = elements + centroids + boundaries
-            
             fig, axes = plt.subplots(
-                1, n_axes, sharex=True, sharey=True, figsize=(4*n_axes + 1, 4)
+                1, n_plots, sharex=True, sharey=True, figsize=(4*n_plots + 1, 4)
             )
+        elif isinstance(axes, plt.Axes):
+            axes = n_plots*[axes]
         
         self.fig = axes[0].figure
         self.axes = axes
