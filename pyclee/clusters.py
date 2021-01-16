@@ -8,12 +8,7 @@ try:
 except ImportError:
     KDTree = None
 
-try:
-    from ordered_set_37 import OrderedSet as Set
-except ImportError:
-    Set = set
-
-from .types import SpatialIndexMethod
+from .types import Set, SpatialIndexMethod
 
 if TYPE_CHECKING:
     from .dyclee import DyCleeContext, RTreeIndex
