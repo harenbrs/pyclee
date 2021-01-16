@@ -33,14 +33,19 @@ class MicroCluster:
         self.elements: Set[Element] = (
             Set([tuple(element)]) if self.context.store_elements else Set()
         )
+        self.once_dense = False
     
     @property
     def centroid(self) -> np.ndarray:
+        # Time dependence not required, as both numerator and denominator are forgotten
+        # according the same multiplicative factor
         return self.linear_sum/self.n_elements
     
-    @property
-    def density(self) -> float:
-        return self.n_elements/self.context.hyperbox_volume
+    def forgetting_factor(self, time: Timestamp) -> float:
+        return self.context.forgetting_method(time - self.last_time)
+    
+    def density(self, time: Timestamp) -> float:
+        return self.n_elements*self.forgetting_factor(time)/self.context.hyperbox_volume
     
     @property
     def bounding_box(self) -> np.ndarray:
@@ -51,7 +56,7 @@ class MicroCluster:
         ).ravel()
     
     def add(self, element: Element, time: Timestamp):
-        factor = self.context.forgetting_method(time - self.last_time)
+        factor = self.forgetting_factor(time)
         
         self.n_elements *= factor
         self.n_elements += 1
@@ -136,7 +141,6 @@ class Cluster:
     def __init__(self, µcluster: MicroCluster):
         self.µclusters = Set([µcluster])
         self.sum_centroids: np.ndarray = np.copy(µcluster.centroid)
-        self.sum_densities: float = µcluster.density
     
     @property
     def n_µclusters(self) -> int:
@@ -146,11 +150,6 @@ class Cluster:
     def centroid(self) -> np.ndarray:
         return self.sum_centroids/self.n_µclusters
     
-    @property
-    def mean_density(self) -> float:
-        return self.sum_densities/self.n_µclusters
-    
     def add(self, µcluster: MicroCluster):
         self.µclusters.add(µcluster)
         self.sum_centroids += µcluster.centroid
-        self.sum_densities += µcluster.density

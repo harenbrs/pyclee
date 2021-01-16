@@ -58,9 +58,11 @@ class BasePlotter(ABC):
     def update(
         self,
         element: Element,
+        time: Timestamp,
         µcluster: MicroCluster,
         clusters: Optional[list[Cluster]],
-        unclustered: Optional[Set[MicroCluster]]
+        unclustered: Optional[Set[MicroCluster]],
+        eliminated: Optional[Set[MicroCluster]]
     ):
         ...
     
@@ -70,7 +72,7 @@ class BasePlotter(ABC):
         
         def animate(frame):
             element, time = frame
-            return self.update(element, *self.dyclee.step(element, time))
+            return self.update(element, time, *self.dyclee.step(element, time))
         
         anim = FuncAnimation(
             self.fig,
@@ -90,19 +92,28 @@ class BasePlotter(ABC):
 class ElementPlotter(BasePlotter):
     title = "Samples"
     
-    def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
+    def __init__(
+        self,
+        dyclee: DyClee,
+        ax: Optional[plt.Axes] = None,
+        keep_eliminated: bool = True
+    ):
         super().__init__(dyclee, ax)
         
         self.path_map: defaultdict[MicroCluster, list[PathCollection]] = defaultdict(
             list
         )
+        
+        self.keep_eliminated = keep_eliminated
     
     def update(
         self,
         element: Element,
+        time: Timestamp,
         µcluster: MicroCluster,
         clusters: Optional[list[Cluster]],
-        unclustered: Optional[Set[MicroCluster]]
+        unclustered: Optional[Set[MicroCluster]],
+        eliminated: Optional[Set[MicroCluster]]
     ):
         path_collection = self.ax.scatter(*element, marker='.')
         
@@ -118,6 +129,12 @@ class ElementPlotter(BasePlotter):
             for µcluster in unclustered:
                 for path_collection in self.path_map[µcluster]:
                     path_collection.set_color(self.outlier_c)
+        
+        if eliminated is not None and not self.keep_eliminated:
+            for µcluster in eliminated:
+                for path_collection in self.path_map[µcluster]:
+                    path_collection.remove()
+                del self.path_map[µcluster]
     
     def plot_snapshot(self, clusters: list[Cluster]):
         if not self.dyclee.context.store_elements:
@@ -125,7 +142,7 @@ class ElementPlotter(BasePlotter):
                 "element snapshot plotting requires DyCleeContext.store_elements"
             )
         
-        unclustered = self.dyclee.all_µclusters
+        unclustered = self.dyclee.all_µclusters | self.dyclee.eliminated
         
         for cluster, c in zip(clusters, cycle(self.cmap.colors)):
             cluster_elements: Set[Element] = Set()
@@ -156,9 +173,11 @@ class CentroidPlotter(BasePlotter):
     def update(
         self,
         element: Element,
+        time: Timestamp,
         µcluster: MicroCluster,
         clusters: Optional[list[Cluster]],
-        unclustered: Optional[Set[MicroCluster]]
+        unclustered: Optional[Set[MicroCluster]],
+        eliminated: Optional[Set[MicroCluster]]
     ):
         if µcluster in self.path_map:
             self.path_map[µcluster].remove()
@@ -175,6 +194,11 @@ class CentroidPlotter(BasePlotter):
         if unclustered is not None:
             for µcluster in unclustered:
                 self.path_map[µcluster].set_color(self.outlier_c)
+        
+        if eliminated is not None:
+            for µcluster in eliminated:
+                self.path_map[µcluster].remove()
+                del self.path_map[µcluster]
     
     def plot_snapshot(self, clusters: list[Cluster]):
         unclustered = self.dyclee.all_µclusters
@@ -206,11 +230,15 @@ class BoundaryPlotter(BasePlotter):
     def update(
         self,
         element: Element,
+        time: Timestamp,
         µcluster: MicroCluster,
         clusters: Optional[list[Cluster]],
-        unclustered: Optional[Set[MicroCluster]]
+        unclustered: Optional[Set[MicroCluster]],
+        eliminated: Optional[Set[MicroCluster]]
     ):
-        max_density = max([µcluster.density for µcluster in self.dyclee.all_µclusters])
+        max_density = max(
+            [µcluster.density(time) for µcluster in self.dyclee.all_µclusters]
+        )
         
         if µcluster in self.patch_map:
             self.patch_map[µcluster].remove()
@@ -224,7 +252,9 @@ class BoundaryPlotter(BasePlotter):
             ]
         )
         
-        patch_collection.set_facecolor((0, 0, 0, 0.5*µcluster.density/max_density))
+        patch_collection.set_facecolor(
+            (0, 0, 0, 0.5*µcluster.density(time)/max_density)
+        )
         self.patch_map[µcluster] = patch_collection
         
         self.ax.add_collection(patch_collection)
@@ -234,18 +264,27 @@ class BoundaryPlotter(BasePlotter):
                 for µcluster in cluster.µclusters:
                     self.patch_map[µcluster].set_edgecolor(c)
                     self.patch_map[µcluster].set_facecolor(
-                        (0, 0, 0, 0.5*µcluster.density/max_density)
+                        (0, 0, 0, 0.5*µcluster.density(time)/max_density)
                     )
         
         if unclustered is not None:
             for µcluster in unclustered:
                 self.patch_map[µcluster].set_edgecolor(self.outlier_c)
                 self.patch_map[µcluster].set_facecolor(
-                    (0, 0, 0, 0.5*µcluster.density/max_density)
+                    (0, 0, 0, 0.5*µcluster.density(time)/max_density)
                 )
+        
+        if eliminated is not None:
+            for µcluster in eliminated:
+                self.patch_map[µcluster].remove()
+                del self.patch_map[µcluster]
     
     def plot_snapshot(self, clusters: list[Cluster]):
-        max_density = max([µcluster.density for µcluster in self.dyclee.all_µclusters])
+        time = max([µcluster.last_time for µcluster in self.dyclee.all_µclusters])
+        
+        max_density = max(
+            [µcluster.density(time) for µcluster in self.dyclee.all_µclusters]
+        )
         
         unclustered = self.dyclee.all_µclusters
         
@@ -263,7 +302,7 @@ class BoundaryPlotter(BasePlotter):
                 )
                 patch_collection.set_edgecolor(c)
                 patch_collection.set_facecolor(
-                    (0, 0, 0, 0.5*µcluster.density/max_density)
+                    (0, 0, 0, 0.5*µcluster.density(time)/max_density)
                 )
                 self.ax.add_collection(patch_collection)
         
@@ -277,7 +316,9 @@ class BoundaryPlotter(BasePlotter):
                 ]
             )
             patch_collection.set_edgecolor(self.outlier_c)
-            patch_collection.set_facecolor((0, 0, 0, 0.5*µcluster.density/max_density))
+            patch_collection.set_facecolor(
+                (0, 0, 0, 0.5*µcluster.density(time)/max_density)
+            )
             self.ax.add_collection(patch_collection)
 
 
@@ -318,12 +359,14 @@ class MultiPlotter(BasePlotter):
     def update(
         self,
         element: Element,
+        time: Timestamp,
         µcluster: MicroCluster,
         clusters: Optional[list[Cluster]],
-        unclustered: Optional[Set[MicroCluster]]
+        unclustered: Optional[Set[MicroCluster]],
+        eliminated: Optional[Set[MicroCluster]]
     ):
         for plotter in self.plotters:
-            plotter.update(element, µcluster, clusters, unclustered)
+            plotter.update(element, time, µcluster, clusters, unclustered, eliminated)
     
     def plot_snapshot(self, clusters: list[Cluster]):
         for plotter in self.plotters:

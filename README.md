@@ -8,7 +8,7 @@ This is a Python implementation of the **DyClee** (Dynamic clustering for tracki
     - Algorithm 2 assigns the `cid` label to any-density second neighbours, but only to dense first neighbours.
 - The definition of direct connectedness given in Equation 5 involves a factor of `1/2` which is inconsistent with the stated condition that the hyperboxes of two given microclusters must overlap to be directly connected. An overlap would mean `max_i|c_ij - c_ik| < S_i for all i`, so this condition was used instead.
 - After each density-based step, cluster labels are removed from microclusters that have not been made part of a cluster during the step. This was not mentioned explicitly in the paper, but the results had a lot of spurious clusters without this change.
-- I chose the definition of outlier microclusters to include `density <= median(densities)` (note the closed interval). This is to deal with the fact that in many situations with a lot of widespread noise `min(densities) == median(densities)`, and with the paper's definition this would result in exactly 0 outlier microclusters.
+- In the paper, microclusters may not skip a step when moving between the density partitions (e.g., dense microclusters may not become outliers, and outliers may not become dense). I believe that this creates a risk of trapping microclusters in the dense or outlier groups, especially in cases where the density-based stage is not applied for every sample, so in this implementation these restrictions are lifted.
 - The paper favoured using a KDTree for spatial indexing. I found this to be too slow as the tree has to be rebuilt from scratch every time a microcluster is added or changed. I've made the R*Tree structure from the `rtree` package the default, as it can be updated with new elements so only has to be created once. This resulted in better performance. (Note: I may not be using the KDTree optimally, this could be looked into.)
 
 I'm looking for input from the original authors to clarify these points, but for now these changes represent my best effort to get sensible results.
@@ -17,8 +17,6 @@ Note also that many variable names have been changed to conform to a consistent 
 
 ## TODO
 - Local-density approach
-- Microcluster elimination (needs clarification about the low density threshold)
-- Long-term memory
 - Outlier rejection ("`Unclass_accepted`" in the paper)
 - Sparse rejection ("`minimum_mc`")
 - pip package

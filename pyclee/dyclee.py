@@ -74,7 +74,8 @@ class DyCleeContext:
             "forget" older samples (as a function of time intervals). `None` implies
             unlimited temporal memory. Defaults to `None`.
          - `long_term_memory: bool`
-            TODO. Defaults to `False`.
+            Whether to save formerly dense microclusters into a long-term storage to
+            speed up recognition when relevant samples reappear. Defaults to `False`.
          - `outlier_rejection: bool`
             TODO. Defaults to `True`.
          - `sparse_rejection: bool`
@@ -162,6 +163,10 @@ class DyCleeContext:
         )
         self.store_elements = store_elements
     
+    @property
+    def elimination_threshold(self):
+        return 0.5/self.hyperbox_volume
+    
     def update_feature_ranges(self, element: Element):
         self.feature_ranges[:, 0] = np.minimum(self.feature_ranges[:, 0], element)
         self.feature_ranges[:, 1] = np.maximum(self.feature_ranges[:, 1], element)
@@ -195,6 +200,8 @@ class DyClee:
         self.dense_µclusters: Set[MicroCluster] = Set()
         self.semidense_µclusters: Set[MicroCluster] = Set()
         self.outlier_µclusters: Set[MicroCluster] = Set()
+        self.long_term_memory: Set[MicroCluster] = Set()
+        self.eliminated: Set[MicroCluster] = Set()
         
         self.next_class_label = 0
         self.last_density_time: Timestamp = None
@@ -215,47 +222,76 @@ class DyClee:
     
     @property
     def all_µclusters(self) -> Set[MicroCluster]:
-        return self.active_µclusters | self.outlier_µclusters
+        return self.active_µclusters | self.outlier_µclusters | self.long_term_memory
     
     def get_next_class_label(self) -> int:
         label = self.next_class_label
         self.next_class_label += 1
         return label
     
-    def update_density_partitions(self):
-        densities = np.array([µcluster.density for µcluster in self.all_µclusters])
+    def update_density_partitions(self, time: Timestamp) -> Set[MicroCluster]:
+        densities = np.array(
+            [µcluster.density(time) for µcluster in self.all_µclusters]
+        )
         mean_density = np.mean(densities)
         median_density = np.median(densities)
         
-        n_µclusters = len(self.all_µclusters)
+        dense_µclusters: Set[MicroCluster] = Set()
+        semidense_µclusters: Set[MicroCluster] = Set()
+        outlier_µclusters: Set[MicroCluster] = Set()
+        long_term_memory: Set[MicroCluster] = Set()
+        eliminated: Set[MicroCluster] = Set()
         
-        # NOTE: boundary between semidense and outliers differs slightly from paper
-        self.dense_µclusters, self.semidense_µclusters, self.outlier_µclusters = (
-            Set(
-                [
-                    µcluster
-                    for µcluster in self.all_µclusters
-                    if mean_density <= µcluster.density >= median_density
-                ]
-            ),
-            Set(
-                [
-                    µcluster
-                    for µcluster in self.all_µclusters
-                    if (µcluster.density >= mean_density)
-                    != (µcluster.density > median_density)
-                ]
-            ),
-            Set(
-                [
-                    µcluster
-                    for µcluster in self.all_µclusters
-                    if mean_density > µcluster.density <= median_density
-                ]
-            )
-        )
+        for µcluster in self.all_µclusters:
+            density = µcluster.density(time)
+            
+            if mean_density <= density >= median_density:
+                # Any may become dense
+                dense_µclusters.add(µcluster)
+                µcluster.once_dense = True
+            elif (
+                µcluster in self.dense_µclusters
+                or µcluster in self.semidense_µclusters
+                or µcluster in self.outlier_µclusters
+            ) and (density >= mean_density) != (density >= median_density):
+                # Dense and outliers may become dense
+                # Semi-dense may stay semi-dense
+                semidense_µclusters.add(µcluster)
+            elif (
+                (
+                    µcluster in self.dense_µclusters
+                    or µcluster in self.semidense_µclusters
+                )
+                and mean_density > density < median_density
+            ) or (
+                µcluster in self.outlier_µclusters
+                and density >= self.context.elimination_threshold
+            ):
+                # Dense and semi-dense may become outliers
+                # Outliers may stay outliers
+                outlier_µclusters.add(µcluster)
+            elif (
+                self.context.long_term_memory
+                and µcluster in self.outlier_µclusters
+                and µcluster.once_dense
+            ):
+                # Outliers may be put into long-term memory
+                long_term_memory.add(µcluster)
+            else:
+                # If none of the conditions are met, the microcluster is eliminated
+                eliminated.add(µcluster)
         
-        assert n_µclusters == len(self.all_µclusters)
+        # Store the final sets
+        self.dense_µclusters = dense_µclusters
+        self.semidense_µclusters = semidense_µclusters
+        self.outlier_µclusters = outlier_µclusters
+        self.long_term_memory = long_term_memory
+        
+        if self.context.store_elements:
+            # Keep track of eliminated microclusters (to not lose elements)
+            self.eliminated |= eliminated
+        
+        return eliminated
     
     def distance_step(self, element: Element, time: Timestamp) -> MicroCluster:
         if self.context.update_ranges:
@@ -275,7 +311,11 @@ class DyClee:
         else:
             closest: MicroCluster = None
             
-            for candidate_µclusters in self.active_µclusters, self.outlier_µclusters:
+            for candidate_µclusters in (
+                self.active_µclusters,
+                self.outlier_µclusters,
+                self.long_term_memory
+            ):
                 # First search actives, then others for reachable microclusters
                 
                 if not candidate_µclusters:
@@ -290,7 +330,7 @@ class DyClee:
                     
                     if matches:
                         closest = matches[
-                            np.argmax([µcluster.density for µcluster in matches])
+                            np.argmax([µcluster.density(time) for µcluster in matches])
                         ]
                 elif self.context.distance_index == SpatialIndexMethod.KDTREE:
                     # Ensure predictable order for indexability
@@ -319,7 +359,10 @@ class DyClee:
                         if (
                             closest is None
                             or dist < min_dist
-                            or (dist == min_dist and µcluster.density > closest.density)
+                            or (
+                                dist == min_dist
+                                and µcluster.density(time) > closest.density(time)
+                            )
                         ):
                             closest = µcluster
                             min_dist = dist
@@ -336,7 +379,10 @@ class DyClee:
                         if (
                             closest is None
                             or dist < min_dist
-                            or (dist == min_dist and µcluster.density > closest.density)
+                            or (
+                                dist == min_dist
+                                and µcluster.density(time) > closest.density(time)
+                            )
                         ):
                             closest = µcluster
                             min_dist = dist
@@ -370,10 +416,12 @@ class DyClee:
                 
                 return µcluster
     
-    def global_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def global_density_step(
+        self, time: Timestamp
+    ) -> tuple[list[Cluster], Set[MicroCluster], Set[MicroCluster]]:
         # NOTE: Deviates from the paper's apparently inconsistent Algorithm 2.
         
-        self.update_density_partitions()
+        eliminated = self.update_density_partitions(time)
         
         clusters: list[Cluster] = []
         seen: Set[MicroCluster] = Set()
@@ -434,14 +482,21 @@ class DyClee:
         for µcluster in unclustered:
             µcluster.label = None
         
-        return clusters, unclustered
+        return clusters, unclustered, eliminated
     
-    def local_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def local_density_step(
+        self,
+    ) -> tuple[list[Cluster], Set[MicroCluster], Set[MicroCluster]]:
         raise NotImplementedError("TODO")
     
     def step(
         self, element: Element, time: Timestamp
-    ) -> tuple[MicroCluster, Optional[list[Cluster]], Optional[Set[MicroCluster]]]:
+    ) -> tuple[
+        MicroCluster,
+        Optional[list[Cluster]],
+        Optional[Set[MicroCluster]],
+        Optional[Set[MicroCluster]]
+    ]:
         µcluster = self.distance_step(element, time)
         
         if (
@@ -449,16 +504,17 @@ class DyClee:
             or time >= self.last_density_time + self.context.density_interval
         ):
             if self.context.multi_density:
-                clusters, unclustered = self.local_density_step()
+                clusters, unclustered, eliminated = self.local_density_step(time)
             else:
-                clusters, unclustered = self.global_density_step()
+                clusters, unclustered, eliminated = self.global_density_step(time)
             
             self.last_density_time = time
         else:
             clusters = None
             unclustered = None
+            eliminated = None
         
-        return µcluster, clusters, unclustered
+        return µcluster, clusters, unclustered, eliminated
     
     def run(
         self,
