@@ -280,6 +280,10 @@ class DyClee:
             else:
                 # If none of the conditions are met, the microcluster is eliminated
                 eliminated.add(µcluster)
+                
+                if self.context.maintain_rtree:
+                    # Remove microcluster from R*-tree
+                    self.rtree.delete(hash(µcluster), µcluster.bounding_box)
         
         # Store the final sets
         self.dense_µclusters = dense_µclusters
