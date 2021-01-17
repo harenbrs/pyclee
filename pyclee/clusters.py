@@ -140,6 +140,7 @@ class MicroCluster:
 class Cluster:
     def __init__(self, µcluster: MicroCluster):
         self.µclusters = Set([µcluster])
+        self.label = µcluster.label
         self.sum_centroids: np.ndarray = np.copy(µcluster.centroid)
     
     @property

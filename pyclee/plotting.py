@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from itertools import cycle
-from typing import TYPE_CHECKING, Optional, Iterable, Union
+from typing import TYPE_CHECKING, Optional, Iterable, Union, Any
 
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -26,12 +26,32 @@ __all__ = ['ElementPlotter', 'CentroidPlotter', 'BoundaryPlotter', 'MultiPlotter
 sns.set()
 
 
+class ColourManager:
+    def __init__(
+        self, cmap=cm.tab10, outlier_colour: tuple[float, ...] = (0.7, 0.7, 0.7, 0.8)
+    ):
+        self.colours = cycle(cmap.colors)
+        self.colour_map: dict[Any, tuple[float, ...]] = {None: outlier_colour}
+    
+    def get_colour(self, label: Any, opacity: Optional[float] = None):
+        if label not in self.colour_map:
+            self.colour_map[label] = next(self.colours)
+        
+        if opacity is not None:
+            return (*self.colour_map[label][:3], opacity)
+        
+        return self.colour_map[label]
+
+
 class BasePlotter(ABC):
-    cmap = cm.tab10
-    outlier_c = (0.7, 0.7, 0.7, 0.8)
     title = None
     
-    def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
+    def __init__(
+        self,
+        dyclee: DyClee,
+        ax: Optional[plt.Axes] = None,
+        colour_manager: Optional[ColourManager] = None
+    ):
         assert dyclee.context.n_features == 2, "plotting only supported for 2D data"
         
         self.dyclee = dyclee
@@ -53,6 +73,11 @@ class BasePlotter(ABC):
                 title = self.title
             
             self.ax.set_title(title)
+        
+        if colour_manager is None:
+            colour_manager = ColourManager()
+        
+        self.colour_manager = colour_manager
     
     @abstractmethod
     def update(
@@ -64,6 +89,11 @@ class BasePlotter(ABC):
         unclustered: Optional[Set[MicroCluster]],
         eliminated: Optional[Set[MicroCluster]]
     ):
+        """
+        Makes changes to the current plot based on the inputs (`element`, `time`) and
+        outputs (`µcluster`, `clusters`, `unclustered`, `eliminated`) of a given
+        `DyClee.step(...)` execution.
+        """
         ...
     
     def animate(self, elements: Iterable[Element], times: Iterable[Timestamp] = None):
@@ -96,9 +126,10 @@ class ElementPlotter(BasePlotter):
         self,
         dyclee: DyClee,
         ax: Optional[plt.Axes] = None,
+        colour_manager: Optional[ColourManager] = None,
         keep_eliminated: bool = True
     ):
-        super().__init__(dyclee, ax)
+        super().__init__(dyclee, ax, colour_manager)
         
         self.path_map: defaultdict[MicroCluster, list[PathCollection]] = defaultdict(
             list
@@ -120,15 +151,25 @@ class ElementPlotter(BasePlotter):
         self.path_map[µcluster].append(path_collection)
         
         if clusters is not None:
-            for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+            for cluster in clusters:
                 for µcluster in cluster.µclusters:
                     for path_collection in self.path_map[µcluster]:
-                        path_collection.set_color(c)
+                        path_collection.set_color(
+                            self.colour_manager.get_colour(cluster.label)
+                        )
+            
+            order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
+            self.ax.legend(
+                [self.path_map[clusters[i].µclusters[0]][0] for i in order],
+                [clusters[i].label for i in order]
+            )
         
         if unclustered is not None:
             for µcluster in unclustered:
                 for path_collection in self.path_map[µcluster]:
-                    path_collection.set_color(self.outlier_c)
+                    path_collection.set_color(
+                        self.colour_manager.get_colour(µcluster.label, 0.5)
+                    )
         
         if eliminated is not None and not self.keep_eliminated:
             for µcluster in eliminated:
@@ -144,7 +185,9 @@ class ElementPlotter(BasePlotter):
         
         unclustered = self.dyclee.all_µclusters | self.dyclee.eliminated
         
-        for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+        paths: dict[int, PathCollection] = {}
+        
+        for cluster in clusters:
             cluster_elements: Set[Element] = Set()
             
             for µcluster in cluster.µclusters:
@@ -152,21 +195,33 @@ class ElementPlotter(BasePlotter):
             
             unclustered -= cluster.µclusters
             
-            self.ax.scatter(*zip(*cluster_elements), color=c, marker='.')
-        
-        unclustered_elements: Set[Element] = Set()
+            paths[cluster.label] = self.ax.scatter(
+                *zip(*cluster_elements),
+                color=self.colour_manager.get_colour(cluster.label),
+                marker='.'
+            )
         
         for µcluster in unclustered:
-            unclustered_elements |= µcluster.elements
+            self.ax.scatter(
+                *zip(*µcluster.elements),
+                color=self.colour_manager.get_colour(µcluster.label, 0.5),
+                marker='.'
+            )
         
-        self.ax.scatter(*zip(*unclustered_elements), color=self.outlier_c, marker='.')
+        labels = sorted(paths)
+        self.ax.legend([paths[label] for label in labels], labels)
 
 
 class CentroidPlotter(BasePlotter):
     title = "µcluster centroids"
     
-    def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
-        super().__init__(dyclee, ax)
+    def __init__(
+        self,
+        dyclee: DyClee,
+        ax: Optional[plt.Axes] = None,
+        colour_manager: Optional[ColourManager] = None
+    ):
+        super().__init__(dyclee, ax, colour_manager)
         
         self.path_map: dict[MicroCluster, PathCollection] = {}
     
@@ -182,18 +237,28 @@ class CentroidPlotter(BasePlotter):
         if µcluster in self.path_map:
             self.path_map[µcluster].remove()
         
-        path_collection = self.ax.scatter(*µcluster.centroid, marker='o')
+        path_collection = self.ax.scatter(*µcluster.centroid, marker='o', color='w')
         
         self.path_map[µcluster] = path_collection
         
         if clusters is not None:
-            for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+            for cluster in clusters:
                 for µcluster in cluster.µclusters:
-                    self.path_map[µcluster].set_color(c)
+                    self.path_map[µcluster].set_color(
+                        self.colour_manager.get_colour(cluster.label)
+                    )
+            
+            order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
+            self.ax.legend(
+                [self.path_map[clusters[i].µclusters[0]] for i in order],
+                [clusters[i].label for i in order]
+            )
         
         if unclustered is not None:
             for µcluster in unclustered:
-                self.path_map[µcluster].set_color(self.outlier_c)
+                self.path_map[µcluster].set_color(
+                    self.colour_manager.get_colour(µcluster.label, 0.5)
+                )
         
         if eliminated is not None:
             for µcluster in eliminated:
@@ -203,27 +268,40 @@ class CentroidPlotter(BasePlotter):
     def plot_snapshot(self, clusters: list[Cluster]):
         unclustered = self.dyclee.all_µclusters
         
-        for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+        paths: dict[int, PathCollection] = {}
+        
+        for cluster in clusters:
             unclustered -= cluster.µclusters
             
-            self.ax.scatter(
+            paths[cluster.label] = self.ax.scatter(
                 *zip(*[µcluster.centroid for µcluster in cluster.µclusters]),
-                color=c,
+                color=self.colour_manager.get_colour(cluster.label),
                 marker='o'
             )
         
         self.ax.scatter(
             *zip(*[µcluster.centroid for µcluster in unclustered]),
-            color=self.outlier_c,
+            c=[
+                self.colour_manager.get_colour(µcluster.label, 0.5)
+                for µcluster in unclustered
+            ],
             marker='o'
         )
+        
+        labels = sorted(paths)
+        self.ax.legend([paths[label] for label in labels], labels)
 
 
 class BoundaryPlotter(BasePlotter):
     title = "µcluster boundaries"
     
-    def __init__(self, dyclee: DyClee, ax: Optional[plt.Axes] = None):
-        super().__init__(dyclee, ax)
+    def __init__(
+        self,
+        dyclee: DyClee,
+        ax: Optional[plt.Axes] = None,
+        colour_manager: Optional[ColourManager] = None
+    ):
+        super().__init__(dyclee, ax, colour_manager)
         
         self.patch_map: dict[MicroCluster, PatchCollection] = {}
     
@@ -252,6 +330,7 @@ class BoundaryPlotter(BasePlotter):
             ]
         )
         
+        patch_collection.set_edgecolor('w')
         patch_collection.set_facecolor(
             (0, 0, 0, 0.5*µcluster.density(time)/max_density)
         )
@@ -260,16 +339,35 @@ class BoundaryPlotter(BasePlotter):
         self.ax.add_collection(patch_collection)
         
         if clusters is not None:
-            for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+            for cluster in clusters:
                 for µcluster in cluster.µclusters:
-                    self.patch_map[µcluster].set_edgecolor(c)
+                    self.patch_map[µcluster].set_edgecolor(
+                        self.colour_manager.get_colour(cluster.label)
+                    )
                     self.patch_map[µcluster].set_facecolor(
                         (0, 0, 0, 0.5*µcluster.density(time)/max_density)
                     )
+            
+            order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
+            self.ax.legend(
+                [
+                    Rectangle(
+                        (0, 0),
+                        1,
+                        1,
+                        facecolor='none',
+                        edgecolor=self.colour_manager.get_colour(clusters[i].label)
+                    )
+                    for i in order
+                ],
+                [clusters[i].label for i in order]
+            )
         
         if unclustered is not None:
             for µcluster in unclustered:
-                self.patch_map[µcluster].set_edgecolor(self.outlier_c)
+                self.patch_map[µcluster].set_edgecolor(
+                    self.colour_manager.get_colour(µcluster.label, 0.5)
+                )
                 self.patch_map[µcluster].set_facecolor(
                     (0, 0, 0, 0.5*µcluster.density(time)/max_density)
                 )
@@ -288,7 +386,7 @@ class BoundaryPlotter(BasePlotter):
         
         unclustered = self.dyclee.all_µclusters
         
-        for cluster, c in zip(clusters, cycle(self.cmap.colors)):
+        for cluster in clusters:
             unclustered -= cluster.µclusters
             
             for µcluster in cluster.µclusters:
@@ -300,7 +398,9 @@ class BoundaryPlotter(BasePlotter):
                         )
                     ]
                 )
-                patch_collection.set_edgecolor(c)
+                patch_collection.set_edgecolor(
+                    self.colour_manager.get_colour(cluster.label)
+                )
                 patch_collection.set_facecolor(
                     (0, 0, 0, 0.5*µcluster.density(time)/max_density)
                 )
@@ -315,11 +415,28 @@ class BoundaryPlotter(BasePlotter):
                     )
                 ]
             )
-            patch_collection.set_edgecolor(self.outlier_c)
+            patch_collection.set_edgecolor(
+                self.colour_manager.get_colour(µcluster.label, 0.5)
+            )
             patch_collection.set_facecolor(
                 (0, 0, 0, 0.5*µcluster.density(time)/max_density)
             )
             self.ax.add_collection(patch_collection)
+        
+        order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
+        self.ax.legend(
+            [
+                Rectangle(
+                    (0, 0),
+                    1,
+                    1,
+                    facecolor='none',
+                    edgecolor=self.colour_manager.get_colour(clusters[i].label)
+                )
+                for i in order
+            ],
+            [clusters[i].label for i in order]
+        )
 
 
 class MultiPlotter(BasePlotter):
@@ -327,6 +444,7 @@ class MultiPlotter(BasePlotter):
         self,
         dyclee: DyClee,
         axes: Optional[Union[Iterable[plt.Axes], plt.Axes]] = None,
+        colour_manager: Optional[ColourManager] = None,
         elements: bool = True,
         centroids: bool = True,
         boundaries: bool = True
@@ -345,16 +463,27 @@ class MultiPlotter(BasePlotter):
         self.fig = axes[0].figure
         self.axes = axes
         
+        if colour_manager is None:
+            colour_manager = ColourManager()
+        
+        self.colour_manager = colour_manager
+        
         self.plotters = []
         
         if elements:
-            self.plotters.append(ElementPlotter(dyclee, self.axes[len(self.plotters)]))
+            self.plotters.append(
+                ElementPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
+            )
         
         if centroids:
-            self.plotters.append(CentroidPlotter(dyclee, self.axes[len(self.plotters)]))
+            self.plotters.append(
+                CentroidPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
+            )
         
         if boundaries:
-            self.plotters.append(BoundaryPlotter(dyclee, self.axes[len(self.plotters)]))
+            self.plotters.append(
+                BoundaryPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
+            )
     
     def update(
         self,
