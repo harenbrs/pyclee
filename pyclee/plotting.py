@@ -146,7 +146,7 @@ class ElementPlotter(BasePlotter):
         unclustered: Optional[Set[MicroCluster]],
         eliminated: Optional[Set[MicroCluster]]
     ):
-        path_collection = self.ax.scatter(*element, marker='.')
+        path_collection = self.ax.scatter(*element, marker='.', color='w')
         
         self.path_map[µcluster].append(path_collection)
         
