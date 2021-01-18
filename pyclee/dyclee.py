@@ -330,7 +330,8 @@ class DyClee:
                         self.µcluster_map[_hash]
                         for _hash in self.rtree.nearest((*element, *element), 1)
                         if self.µcluster_map[_hash].is_reachable(element)
-                    ]
+                        and self.µcluster_map[_hash] in candidate_µclusters
+                    ]  # TODO: maintain separate rtrees?
                     
                     if matches:
                         closest = matches[
