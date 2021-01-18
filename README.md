@@ -14,12 +14,42 @@ I'm looking for input from the original authors to clarify these points, but for
 
 Note also that many variable names have been changed to conform to a consistent style.
 
+## Examples
+
+See [`Examples.ipynb`](./Examples.ipynb) for more details.
+
+### Static
+
+```python
+# See Examples.ipynb for imports etc.
+context = DyCleeContext(2, 0.06, bounds, store_elements=True)
+dy = DyClee(context)
+clusters = dy.run(X)
+
+MultiPlotter(dy).plot_snapshot(clusters)
+```
+
+![blobs-separate](https://user-images.githubusercontent.com/1812261/104946855-af98a780-59b2-11eb-9558-1a03dd7785c0.png)
+
+### Dynamic ("concept drift")
+
+```python
+# See Examples.ipynb for imports etc.
+context = DyCleeContext(2, 0.06, bounds, forgetting_method=ExponentialForgettingMethod(0.01))
+dy = DyClee(context)
+
+fig, ax = plt.subplots()
+MultiPlotter(dy, ax, centroids=False).animate(X)
+```
+
+![drift-16x](https://user-images.githubusercontent.com/1812261/104943086-22068900-59ad-11eb-9a4f-4b9cd3134acb.gif)
+
+
 ## TODO
 - Local-density approach
 - Outlier rejection ("`Unclass_accepted`" in the paper)
 - Sparse rejection ("`minimum_mc`")
 - pip package
-- Examples
 - Tests
 - Benchmarks
 
