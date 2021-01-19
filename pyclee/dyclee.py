@@ -488,10 +488,6 @@ class DyClee:
         for cluster in clusters:
             unclustered -= cluster.µclusters
         
-        # Remove their labels
-        for µcluster in unclustered:
-            µcluster.label = None
-        
         return clusters, unclustered
     
     def local_density_step(
