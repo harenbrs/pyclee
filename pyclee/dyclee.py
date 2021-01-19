@@ -38,7 +38,7 @@ class DyCleeContext:
         hyperbox_fractions: Union[float, Iterable[float]],
         feature_ranges: Iterable[[float, float]],
         *,
-        update_ranges: bool = True,
+        update_ranges: bool = False,
         uncommon_dimensions: int = 0,
         forgetting_method: Optional[ForgettingMethod] = None,
         long_term_memory: bool = False,
@@ -66,7 +66,7 @@ class DyCleeContext:
             `[(xmin, xmax), (ymin, ymax), ...]`
          - `update_ranges: bool`
             This flag controls whether the feature ranges and derived parameters are to
-            be automatically updated at each timestep. Defaults to `True`.
+            be automatically updated at each timestep. Defaults to `False`.
          - `uncommon_dimensions: int`
             Number of dimensions to ignore for microcluster connectedness calculations.
             Ignored if `density_method == SpatialIndexMethod.RTREE`. Defaults to `0`.
