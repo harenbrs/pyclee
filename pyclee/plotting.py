@@ -45,6 +45,7 @@ class ColourManager:
 
 class BasePlotter(ABC):
     title = None
+    unclustered_opacity = 0.2
     
     def __init__(
         self,
@@ -168,7 +169,9 @@ class ElementPlotter(BasePlotter):
             for µcluster in unclustered:
                 for path_collection in self.path_map[µcluster]:
                     path_collection.set_color(
-                        self.colour_manager.get_colour(µcluster.label, 0.5)
+                        self.colour_manager.get_colour(
+                            µcluster.label, self.unclustered_opacity
+                        )
                     )
         
         if eliminated is not None and not self.keep_eliminated:
@@ -204,7 +207,9 @@ class ElementPlotter(BasePlotter):
         for µcluster in unclustered:
             self.ax.scatter(
                 *zip(*µcluster.elements),
-                color=self.colour_manager.get_colour(µcluster.label, 0.5),
+                color=self.colour_manager.get_colour(
+                    µcluster.label, self.unclustered_opacity
+                ),
                 marker='.'
             )
         
@@ -257,7 +262,9 @@ class CentroidPlotter(BasePlotter):
         if unclustered is not None:
             for µcluster in unclustered:
                 self.path_map[µcluster].set_color(
-                    self.colour_manager.get_colour(µcluster.label, 0.5)
+                    self.colour_manager.get_colour(
+                        µcluster.label, self.unclustered_opacity
+                    )
                 )
         
         if eliminated is not None:
@@ -282,7 +289,7 @@ class CentroidPlotter(BasePlotter):
         self.ax.scatter(
             *zip(*[µcluster.centroid for µcluster in unclustered]),
             c=[
-                self.colour_manager.get_colour(µcluster.label, 0.5)
+                self.colour_manager.get_colour(µcluster.label, self.unclustered_opacity)
                 for µcluster in unclustered
             ],
             marker='o'
@@ -366,7 +373,9 @@ class BoundaryPlotter(BasePlotter):
         if unclustered is not None:
             for µcluster in unclustered:
                 self.patch_map[µcluster].set_edgecolor(
-                    self.colour_manager.get_colour(µcluster.label, 0.5)
+                    self.colour_manager.get_colour(
+                        µcluster.label, self.unclustered_opacity
+                    )
                 )
                 self.patch_map[µcluster].set_facecolor(
                     (0, 0, 0, 0.5*µcluster.density(time)/max_density)
@@ -416,7 +425,7 @@ class BoundaryPlotter(BasePlotter):
                 ]
             )
             patch_collection.set_edgecolor(
-                self.colour_manager.get_colour(µcluster.label, 0.5)
+                self.colour_manager.get_colour(µcluster.label, self.unclustered_opacity)
             )
             patch_collection.set_facecolor(
                 (0, 0, 0, 0.5*µcluster.density(time)/max_density)
