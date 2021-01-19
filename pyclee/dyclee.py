@@ -495,6 +495,14 @@ class DyClee:
     ) -> tuple[list[Cluster], Set[MicroCluster]]:
         raise NotImplementedError("TODO")
     
+    def density_step(
+        self,
+    ) -> tuple[list[Cluster], Set[MicroCluster]]:
+        if self.context.multi_density:
+            return self.local_density_step()
+        else:
+            return self.global_density_step()
+    
     def step(
         self, element: Element, time: Timestamp
     ) -> tuple[
@@ -519,10 +527,7 @@ class DyClee:
             self.last_density_time is None
             or time >= self.last_density_time + self.context.density_interval
         ):
-            if self.context.multi_density:
-                clusters, unclustered = self.local_density_step(time)
-            else:
-                clusters, unclustered = self.global_density_step(time)
+            clusters, unclustered = self.density_step()
             
             self.last_density_time = time
         else:
