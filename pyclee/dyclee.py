@@ -45,6 +45,7 @@ class DyCleeContext:
         outlier_rejection: bool = True,
         sparse_rejection: bool = False,
         multi_density: bool = False,
+        partitioning_interval: Interval = 0.0,
         density_interval: Interval = 1.0,
         distance_index: Optional[SpatialIndexMethod] = SpatialIndexMethod.RTREE,
         density_index: Optional[SpatialIndexMethod] = SpatialIndexMethod.RTREE,
@@ -82,6 +83,11 @@ class DyCleeContext:
             TODO. Defaults to `False`.
          - `multi_density: bool`
             TODO. Defaults to `False`.
+         - `partitioning_interval: Interval`
+            Controls how many timesteps pass between the partitioning step which groups
+            microclusters into dense, semi-dense and outlier groups and manages the
+            long-term memory (if configured) and elimination. Set to `0` to enforce
+            partitioning after every timestep, no matter how small. Defaults to `0.0`.
          - `density_interval: Interval`
             Controls how many timesteps pass between applications of the density-based
             clustering stage. Increasing this may help with performance. Set to `0` to
@@ -136,6 +142,7 @@ class DyCleeContext:
         self.outlier_rejection = outlier_rejection
         self.sparse_rejection = sparse_rejection
         self.multi_density = multi_density
+        self.partitioning_interval = partitioning_interval
         self.density_interval = density_interval
         
         self.distance_index = distance_index
@@ -204,6 +211,7 @@ class DyClee:
         self.eliminated: Set[MicroCluster] = Set()
         
         self.next_class_label = 0
+        self.last_partitioning_time: Timestamp = None
         self.last_density_time: Timestamp = None
         
         if self.context.maintain_rtree:
@@ -423,11 +431,8 @@ class DyClee:
     
     def global_density_step(
         self, time: Timestamp
-    ) -> tuple[list[Cluster], Set[MicroCluster], Set[MicroCluster]]:
+    ) -> tuple[list[Cluster], Set[MicroCluster]]:
         # NOTE: Deviates from the paper's apparently inconsistent Algorithm 2.
-        
-        eliminated = self.update_density_partitions(time)
-        
         clusters: list[Cluster] = []
         seen: Set[MicroCluster] = Set()
         
@@ -487,11 +492,11 @@ class DyClee:
         for µcluster in unclustered:
             µcluster.label = None
         
-        return clusters, unclustered, eliminated
+        return clusters, unclustered
     
     def local_density_step(
         self,
-    ) -> tuple[list[Cluster], Set[MicroCluster], Set[MicroCluster]]:
+    ) -> tuple[list[Cluster], Set[MicroCluster]]:
         raise NotImplementedError("TODO")
     
     def step(
@@ -505,13 +510,23 @@ class DyClee:
         µcluster = self.distance_step(element, time)
         
         if (
+            self.last_partitioning_time is None
+            or time >= self.last_partitioning_time + self.context.partitioning_interval
+        ):
+            eliminated = self.update_density_partitions(time)
+            
+            self.last_partitioning_time = time
+        else:
+            eliminated = None
+        
+        if (
             self.last_density_time is None
             or time >= self.last_density_time + self.context.density_interval
         ):
             if self.context.multi_density:
-                clusters, unclustered, eliminated = self.local_density_step(time)
+                clusters, unclustered = self.local_density_step(time)
             else:
-                clusters, unclustered, eliminated = self.global_density_step(time)
+                clusters, unclustered = self.global_density_step(time)
             
             self.last_density_time = time
         else:
