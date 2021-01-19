@@ -30,7 +30,7 @@ clusters = dy.run(X)
 MultiPlotter(dy).plot_snapshot(clusters)
 ```
 
-![blobs-separate](https://user-images.githubusercontent.com/1812261/104946855-af98a780-59b2-11eb-9558-1a03dd7785c0.png)
+![blobs](https://user-images.githubusercontent.com/1812261/105034730-ca6e2900-5a51-11eb-8bbf-374df5d687f4.png)
 
 ### Dynamic ("concept drift")
 
@@ -43,7 +43,7 @@ fig, ax = plt.subplots()
 MultiPlotter(dy, ax, centroids=False).animate(X)
 ```
 
-![drift-16x](https://user-images.githubusercontent.com/1812261/104943086-22068900-59ad-11eb-9a4f-4b9cd3134acb.gif)
+![drift-16x](https://user-images.githubusercontent.com/1812261/105104294-e0a7d380-5aa9-11eb-9f16-0761a254d638.gif)
 
 
 ## TODO
