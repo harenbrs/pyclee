@@ -210,6 +210,7 @@ class DyClee:
         self.long_term_memory: Set[MicroCluster] = Set()
         self.eliminated: Set[MicroCluster] = Set()
         
+        self.next_µcluster_index = 0
         self.next_class_label = 0
         self.last_partitioning_time: Timestamp = None
         self.last_density_time: Timestamp = None
@@ -232,6 +233,11 @@ class DyClee:
     def all_µclusters(self) -> Set[MicroCluster]:
         return self.active_µclusters | self.outlier_µclusters | self.long_term_memory
     
+    def get_next_µcluster_index(self) -> int:
+        index = self.next_µcluster_index
+        self.next_µcluster_index += 1
+        return index
+    
     def get_next_class_label(self) -> int:
         label = self.next_class_label
         self.next_class_label += 1
@@ -244,10 +250,10 @@ class DyClee:
         mean_density = np.mean(densities)
         median_density = np.median(densities)
         
-        dense_µclusters: Set[MicroCluster] = Set()
-        semidense_µclusters: Set[MicroCluster] = Set()
-        outlier_µclusters: Set[MicroCluster] = Set()
-        long_term_memory: Set[MicroCluster] = Set()
+        dense: Set[MicroCluster] = Set()
+        semidense: Set[MicroCluster] = Set()
+        outliers: Set[MicroCluster] = Set()
+        memory: Set[MicroCluster] = Set()
         eliminated: Set[MicroCluster] = Set()
         
         for µcluster in self.all_µclusters:
@@ -255,7 +261,7 @@ class DyClee:
             
             if mean_density <= density >= median_density:
                 # Any may become dense
-                dense_µclusters.add(µcluster)
+                dense.add(µcluster)
                 µcluster.once_dense = True
             elif (
                 µcluster in self.dense_µclusters
@@ -264,7 +270,7 @@ class DyClee:
             ) and (density >= mean_density) != (density >= median_density):
                 # Dense and outliers may become dense
                 # Semi-dense may stay semi-dense
-                semidense_µclusters.add(µcluster)
+                semidense.add(µcluster)
             elif (
                 (
                     µcluster in self.dense_µclusters
@@ -277,14 +283,14 @@ class DyClee:
             ):
                 # Dense and semi-dense may become outliers
                 # Outliers may stay outliers
-                outlier_µclusters.add(µcluster)
+                outliers.add(µcluster)
             elif (
                 self.context.long_term_memory
                 and µcluster in self.outlier_µclusters
                 and µcluster.once_dense
             ):
                 # Outliers may be put into long-term memory
-                long_term_memory.add(µcluster)
+                memory.add(µcluster)
             else:
                 # If none of the conditions are met, the microcluster is eliminated
                 eliminated.add(µcluster)
@@ -293,11 +299,11 @@ class DyClee:
                     # Remove microcluster from R*-tree
                     self.rtree.delete(hash(µcluster), µcluster.bounding_box)
         
-        # Store the final sets
-        self.dense_µclusters = dense_µclusters
-        self.semidense_µclusters = semidense_µclusters
-        self.outlier_µclusters = outlier_µclusters
-        self.long_term_memory = long_term_memory
+        # Store the final sets, sorting by index for predictable ordering
+        self.dense_µclusters = Set(sorted(dense, key=lambda µ: µ.index))
+        self.semidense_µclusters = Set(sorted(semidense, key=lambda µ: µ.index))
+        self.outlier_µclusters = Set(sorted(outliers, key=lambda µ: µ.index))
+        self.long_term_memory = Set(sorted(memory, key=lambda µ: µ.index))
         
         if self.context.store_elements:
             # Keep track of eliminated microclusters (to not lose elements)
@@ -311,7 +317,12 @@ class DyClee:
         
         if not self.all_µclusters:
             # Create new microcluster
-            µcluster = MicroCluster(element, time, context=self.context)
+            µcluster = MicroCluster(
+                element,
+                time,
+                context=self.context,
+                index=self.get_next_µcluster_index()
+            )
             self.outlier_µclusters.add(µcluster)
             
             if self.context.maintain_rtree:
@@ -419,7 +430,12 @@ class DyClee:
                 return closest
             else:
                 # Create new microcluster
-                µcluster = MicroCluster(element, time, context=self.context)
+                µcluster = MicroCluster(
+                    element,
+                    time,
+                    context=self.context,
+                    index=self.get_next_µcluster_index()
+                )
                 self.outlier_µclusters.add(µcluster)
                 
                 if self.context.maintain_rtree:

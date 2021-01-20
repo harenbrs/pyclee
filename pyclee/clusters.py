@@ -21,6 +21,7 @@ class MicroCluster:
         element: Element,
         time: Timestamp,
         context: DyCleeContext,
+        index: int,
         label: Optional[int] = None
     ):
         self.n_elements: Union[int, float] = 1
@@ -29,6 +30,7 @@ class MicroCluster:
         self.first_time = time
         self.last_time = time
         self.context = context
+        self.index = index
         self.label = label
         self.elements: Set[Element] = (
             Set([tuple(element)]) if self.context.store_elements else Set()
