@@ -429,9 +429,7 @@ class DyClee:
                 
                 return µcluster
     
-    def global_density_step(
-        self, time: Timestamp
-    ) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def global_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
         # NOTE: Deviates from the paper's apparently inconsistent Algorithm 2.
         clusters: list[Cluster] = []
         seen: Set[MicroCluster] = Set()
@@ -490,14 +488,10 @@ class DyClee:
         
         return clusters, unclustered
     
-    def local_density_step(
-        self,
-    ) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def local_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
         raise NotImplementedError("TODO")
     
-    def density_step(
-        self,
-    ) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
         if self.context.multi_density:
             return self.local_density_step()
         else:
