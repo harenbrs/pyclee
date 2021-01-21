@@ -44,8 +44,8 @@ class ColourManager:
 
 
 class BasePlotter(ABC):
-    title = None
-    unclustered_opacity = 0.2
+    title: Optional[str] = None
+    unclustered_opacity: float = 0.2
     
     def __init__(
         self,
@@ -97,7 +97,9 @@ class BasePlotter(ABC):
         """
         ...
     
-    def animate(self, elements: Iterable[Element], times: Iterable[Timestamp] = None):
+    def animate(
+        self, elements: Iterable[Element], times: Optional[Iterable[Timestamp]] = None
+    ):
         if times is None:
             times = count()
         

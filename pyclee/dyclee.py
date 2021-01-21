@@ -213,8 +213,8 @@ class DyClee:
         
         self.next_µcluster_index = 0
         self.next_class_label = 0
-        self.last_partitioning_time: Timestamp = None
-        self.last_density_time: Timestamp = None
+        self.last_partitioning_time: Optional[Timestamp] = None
+        self.last_density_time: Optional[Timestamp] = None
         
         if self.context.maintain_rtree:
             p = RTreeProperty(dimension=self.context.n_features)
