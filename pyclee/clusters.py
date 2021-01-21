@@ -26,7 +26,7 @@ class MicroCluster:
     ):
         self.n_elements: Union[int, float] = 1
         self.linear_sum: np.ndarray = np.copy(element)
-        self.sum_squares: np.ndarray = np.power(element, 2)
+        self.squared_sum: np.ndarray = np.power(element, 2)
         self.first_time = time
         self.last_time = time
         self.context = context
@@ -66,8 +66,8 @@ class MicroCluster:
         self.linear_sum *= factor
         self.linear_sum += element
         
-        self.sum_squares *= factor
-        self.sum_squares += np.power(element, 2)
+        self.squared_sum *= factor
+        self.squared_sum += np.power(element, 2)
         
         self.last_time = time
         
