@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Iterable, Union, Optional
+from typing import Sequence, Iterable, Union, Optional
 import warnings
+from itertools import count
 
 import numpy as np
 
@@ -35,8 +36,8 @@ class DyCleeContext:
     def __init__(
         self,
         n_features: int,
-        hyperbox_fractions: Union[float, Iterable[float]],
-        feature_ranges: Iterable[[float, float]],
+        hyperbox_fractions: Union[float, Sequence[float]],
+        feature_ranges: Sequence[Sequence[float, float]],
         *,
         update_ranges: bool = False,
         uncommon_dimensions: int = 0,
@@ -57,11 +58,11 @@ class DyCleeContext:
         ### Parameters
          - `n_features: int`
             Number of features/dimensions of the input data.
-         - `hyperbox_fractions: float | Iterable[float]`
+         - `hyperbox_fractions: float | Sequence[float]`
             Relative size of each dimension of the microclusters' hyperboxes, as a
             fraction of the total range of each dimension of the input data.
             If a scalar is given, the same fraction is used for all dimensions.
-         - `feature_ranges: Iterable[[float, float]]`
+         - `feature_ranges: Sequence[[float, float]]`
             Range of each dimension of the input data in the form:
             `[(xmin, xmax), (ymin, ymax), ...]`
          - `update_ranges: bool`
@@ -121,7 +122,7 @@ class DyCleeContext:
         """
         self.n_features = n_features
         
-        if not isinstance(hyperbox_fractions, Iterable):
+        if not isinstance(hyperbox_fractions, Sequence):
             hyperbox_fractions = n_features*[hyperbox_fractions]
         
         self.hyperbox_fractions: np.ndarray = np.asarray(hyperbox_fractions)
@@ -557,7 +558,7 @@ class DyClee:
             elements = tqdm(elements)
         
         if times is None:
-            times = range(len(elements))
+            times = count()
         
         clusters = None
         

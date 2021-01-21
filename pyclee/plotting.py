@@ -1,8 +1,8 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from itertools import cycle
-from typing import TYPE_CHECKING, Optional, Iterable, Union, Any
+from itertools import cycle, count
+from typing import TYPE_CHECKING, Optional, Iterable, Sequence, Union, Any
 
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -99,7 +99,7 @@ class BasePlotter(ABC):
     
     def animate(self, elements: Iterable[Element], times: Iterable[Timestamp] = None):
         if times is None:
-            times = range(len(elements))
+            times = count()
         
         def animate(frame):
             element, time = frame
@@ -452,7 +452,7 @@ class MultiPlotter(BasePlotter):
     def __init__(
         self,
         dyclee: DyClee,
-        axes: Optional[Union[Iterable[plt.Axes], plt.Axes]] = None,
+        axes: Optional[Union[Sequence[plt.Axes], plt.Axes]] = None,
         colour_manager: Optional[ColourManager] = None,
         elements: bool = True,
         centroids: bool = True,

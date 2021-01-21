@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import NewType, Iterable
+from typing import NewType, Sequence
 import warnings
 
 try:
@@ -12,7 +12,7 @@ except ImportError:
     Set = set
 
 
-Element = NewType('Element', Iterable[float])
+Element = NewType('Element', Sequence[float])
 Timestamp = NewType('Timestamp', float)
 Interval = NewType('Interval', float)
 
