@@ -143,16 +143,14 @@ class Cluster:
     def __init__(self, µcluster: MicroCluster):
         self.µclusters = Set([µcluster])
         self.label = µcluster.label
-        self.sum_centroids: np.ndarray = np.copy(µcluster.centroid)
     
-    @property
-    def n_µclusters(self) -> int:
-        return len(self.µclusters)
+    def centroid(self, time: Timestamp) -> np.ndarray:
+        return sum(
+            µ.centroid*µ.n_elements*µ.forgetting_factor(time) for µ in self.µclusters
+        )/self.n_elements(time)
     
-    @property
-    def centroid(self) -> np.ndarray:
-        return self.sum_centroids/self.n_µclusters
+    def n_elements(self, time: Timestamp) -> np.ndarray:
+        return sum(µ.n_elements*µ.forgetting_factor(time) for µ in self.µclusters)
     
     def add(self, µcluster: MicroCluster):
         self.µclusters.add(µcluster)
-        self.sum_centroids += µcluster.centroid
