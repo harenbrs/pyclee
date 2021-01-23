@@ -69,7 +69,7 @@ class BasePlotter(ABC):
         if self.title is not None:
             title = self.ax.get_title()
             if title:
-                title += f" + {self.title}"
+                title += f" + {self.title.lower()}"
             else:
                 title = self.title
             
@@ -214,88 +214,6 @@ class ElementPlotter(BasePlotter):
                 ),
                 marker='.'
             )
-        
-        labels = sorted(paths)
-        self.ax.legend([paths[label] for label in labels], labels)
-
-
-class CentroidPlotter(BasePlotter):
-    title = "µcluster centroids"
-    
-    def __init__(
-        self,
-        dyclee: DyClee,
-        ax: Optional[plt.Axes] = None,
-        colour_manager: Optional[ColourManager] = None
-    ):
-        super().__init__(dyclee, ax, colour_manager)
-        
-        self.path_map: dict[MicroCluster, PathCollection] = {}
-    
-    def update(
-        self,
-        element: Element,
-        time: Timestamp,
-        µcluster: MicroCluster,
-        clusters: Optional[list[Cluster]],
-        unclustered: Optional[Set[MicroCluster]],
-        eliminated: Optional[Set[MicroCluster]]
-    ):
-        if µcluster in self.path_map:
-            self.path_map[µcluster].remove()
-        
-        path_collection = self.ax.scatter(*µcluster.centroid, marker='o', color='w')
-        
-        self.path_map[µcluster] = path_collection
-        
-        if clusters is not None:
-            for cluster in clusters:
-                for µcluster in cluster.µclusters:
-                    self.path_map[µcluster].set_color(
-                        self.colour_manager.get_colour(cluster.label)
-                    )
-            
-            order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
-            self.ax.legend(
-                [self.path_map[clusters[i].µclusters[0]] for i in order],
-                [clusters[i].label for i in order]
-            )
-        
-        if unclustered is not None:
-            for µcluster in unclustered:
-                self.path_map[µcluster].set_color(
-                    self.colour_manager.get_colour(
-                        µcluster.label, self.unclustered_opacity
-                    )
-                )
-        
-        if eliminated is not None:
-            for µcluster in eliminated:
-                self.path_map[µcluster].remove()
-                del self.path_map[µcluster]
-    
-    def plot_snapshot(self, clusters: list[Cluster]):
-        unclustered = self.dyclee.all_µclusters
-        
-        paths: dict[int, PathCollection] = {}
-        
-        for cluster in clusters:
-            unclustered -= cluster.µclusters
-            
-            paths[cluster.label] = self.ax.scatter(
-                *zip(*[µcluster.centroid for µcluster in cluster.µclusters]),
-                color=self.colour_manager.get_colour(cluster.label),
-                marker='o'
-            )
-        
-        self.ax.scatter(
-            *zip(*[µcluster.centroid for µcluster in unclustered]),
-            c=[
-                self.colour_manager.get_colour(µcluster.label, self.unclustered_opacity)
-                for µcluster in unclustered
-            ],
-            marker='o'
-        )
         
         labels = sorted(paths)
         self.ax.legend([paths[label] for label in labels], labels)
@@ -450,6 +368,70 @@ class BoundaryPlotter(BasePlotter):
         )
 
 
+class CentroidPlotter(BasePlotter):
+    title = "Cluster centroids"
+    
+    def __init__(
+        self,
+        dyclee: DyClee,
+        ax: Optional[plt.Axes] = None,
+        colour_manager: Optional[ColourManager] = None
+    ):
+        super().__init__(dyclee, ax, colour_manager)
+        
+        self.path_map: dict[Cluster, PathCollection] = {}
+    
+    def update(
+        self,
+        element: Element,
+        time: Timestamp,
+        µcluster: MicroCluster,
+        clusters: Optional[list[Cluster]],
+        unclustered: Optional[Set[MicroCluster]],
+        eliminated: Optional[Set[MicroCluster]]
+    ):
+        
+        if clusters is not None:
+            for path in self.path_map.values():
+                path.remove()
+            
+            self.path_map = {}
+            
+            for cluster in clusters:
+                path_collection = self.ax.scatter(
+                    *cluster.centroid(time),
+                    marker='o',
+                    s=80,
+                    color=self.colour_manager.get_colour(cluster.label),
+                    edgecolors='w'
+                )
+                
+                self.path_map[cluster] = path_collection
+            
+            order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
+            self.ax.legend(
+                [self.path_map[clusters[i]] for i in order],
+                [clusters[i].label for i in order]
+            )
+    
+    def plot_snapshot(self, clusters: list[Cluster]):
+        time = max(max(µ.last_time for µ in cluster.µclusters) for cluster in clusters)
+        
+        paths: dict[int, PathCollection] = {}
+        
+        for cluster in clusters:
+            paths[cluster.label] = self.ax.scatter(
+                *cluster.centroid(time),
+                marker='o',
+                s=80,
+                color=self.colour_manager.get_colour(cluster.label),
+                edgecolors='w'
+            )
+        
+        labels = sorted(paths)
+        self.ax.legend([paths[label] for label in labels], labels)
+
+
 class MultiPlotter(BasePlotter):
     def __init__(
         self,
@@ -457,8 +439,8 @@ class MultiPlotter(BasePlotter):
         axes: Optional[Union[Sequence[plt.Axes], plt.Axes]] = None,
         colour_manager: Optional[ColourManager] = None,
         elements: bool = True,
-        centroids: bool = True,
-        boundaries: bool = True
+        boundaries: bool = True,
+        centroids: bool = True
     ):
         self.dyclee = dyclee
         
@@ -486,14 +468,14 @@ class MultiPlotter(BasePlotter):
                 ElementPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
             )
         
-        if centroids:
-            self.plotters.append(
-                CentroidPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
-            )
-        
         if boundaries:
             self.plotters.append(
                 BoundaryPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
+            )
+        
+        if centroids:
+            self.plotters.append(
+                CentroidPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
             )
     
     def update(
