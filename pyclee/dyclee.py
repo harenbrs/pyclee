@@ -560,3 +560,218 @@ class DyClee:
             clusters = self.step(element, time)[1] or clusters
         
         return clusters
+
+
+class SQLDyClee(DyClee):
+    def __init__(self, context: DyCleeContext, connection):
+        super().__init__(context)
+        
+        self.connection = connection
+        
+        # Input data
+        self.connection.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS samples (
+                sample_id INTEGER,
+                time REAL,
+                x REAL,
+                y REAL
+            )
+            '''
+        )
+        
+        # Permanent many-to-one relationships of samples to microclusters
+        self.connection.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS microcluster_members (
+                sample_id INTEGER,
+                microcluster_id INTEGER
+            )
+            '''
+        )
+        
+        # Temporary state of the microcluster groups, rewritten each step
+        self.connection.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS microclusters (
+                id INTEGER UNIQUE,
+                density_group INTEGER,
+                label INTEGER,
+                n_elements REAL,
+                sum_x REAL,
+                sum_y REAL,
+                last_time REAL,
+                once_dense INTEGER
+            )
+            '''
+        )
+        
+        # Desired output of density stage
+        self.connection.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS cluster_history (
+                time REAL,
+                label INTEGER,
+                x REAL,
+                y REAL,
+                n_elements REAL,
+                microclusters TEXT
+            )
+            '''
+        )
+        
+        self.connection.commit()
+        
+        cursor = self.connection.execute(
+            '''
+            SELECT
+                id,
+                density_group,
+                label,
+                n_elements,
+                sum_x,
+                sum_y,
+                last_time,
+                once_dense
+            FROM microclusters
+            ORDER BY id ASC
+            '''
+        )
+        
+        self.last_time = 0
+        
+        for (
+            index,
+            density_group,
+            label,
+            n_elements,
+            *linear_sum,
+            last_time,
+            once_dense
+        ) in cursor.fetchall():
+            µcluster = MicroCluster(linear_sum, last_time, self.context, index, label)
+            µcluster.n_elements = n_elements
+            µcluster.once_dense = once_dense
+            
+            if density_group == 0:
+                self.dense_µclusters.add(µcluster)
+            elif density_group == 1:
+                self.semidense_µclusters.add(µcluster)
+            elif density_group == 2:
+                self.outlier_µclusters.add(µcluster)
+            elif density_group == 3:
+                self.long_term_memory.add(µcluster)
+            
+            self.last_time = max(self.last_time, last_time)
+            
+            self.next_µcluster_index = max(self.next_µcluster_index, index + 1)
+            
+            if label is not None:
+                self.next_class_label = max(self.next_class_label, label + 1)
+            
+            if self.context.maintain_rtree:
+                # Add microcluster to R*-tree
+                self.µcluster_map[hash(µcluster)] = µcluster
+                self.rtree.insert(hash(µcluster), µcluster.bounding_box)
+        
+        self.last_density_time = self.last_time
+    
+    def run(self):
+        cursor = self.connection.execute(
+            '''
+            SELECT
+                sample_id,
+                time,
+                x,
+                y
+            FROM samples
+            WHERE time > ?
+            ORDER BY time ASC
+            ''',
+            (self.last_time,)
+        )
+        
+        for sample_id, time, x, y in tqdm(cursor.fetchall()):
+            µcluster, clusters, unclustered, eliminated = self.step((x, y), time)
+            
+            self.connection.execute(
+                '''
+                INSERT INTO microcluster_members (sample_id, microcluster_id)
+                VALUES (?, ?)
+                ''',
+                (sample_id, µcluster.index)
+            )
+            
+            for µ in self.all_µclusters | eliminated:
+                if µ in self.dense_µclusters:
+                    density_group = 0
+                elif µ in self.semidense_µclusters:
+                    density_group = 1
+                elif µ in self.outlier_µclusters:
+                    density_group = 2
+                elif µ in self.long_term_memory:
+                    density_group = 3
+                else:
+                    density_group = 4
+                
+                self.connection.execute(
+                    '''
+                    INSERT INTO microclusters (
+                        id,
+                        density_group,
+                        label,
+                        n_elements,
+                        sum_x,
+                        sum_y,
+                        last_time,
+                        once_dense
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?
+                    ) ON CONFLICT (id) DO
+                    UPDATE SET
+                        density_group = excluded.density_group,
+                        label = excluded.label,
+                        n_elements = excluded.n_elements,
+                        sum_x = excluded.sum_x,
+                        sum_y = excluded.sum_y,
+                        last_time = excluded.last_time,
+                        once_dense = excluded.once_dense
+                    ''',
+                    (
+                        µ.index,
+                        density_group,
+                        µ.label,
+                        µ.n_elements,
+                        *µ.linear_sum,
+                        µ.last_time,
+                        µ.once_dense
+                    )
+                )
+            
+            if clusters is not None:
+                for cluster in clusters:
+                    self.connection.execute(
+                        '''
+                        INSERT INTO cluster_history (
+                            time,
+                            label,
+                            x,
+                            y,
+                            n_elements,
+                            microclusters
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?
+                        )
+                        ''',
+                        (
+                            time,
+                            cluster.label,
+                            *cluster.centroid(time),
+                            cluster.n_elements(time),
+                            str(sorted([µ.index for µ in cluster.µclusters]))
+                        )
+                    )
+            
+            self.connection.commit()
+            
+            self.last_time = time
