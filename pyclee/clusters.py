@@ -114,6 +114,7 @@ class MicroCluster:
                     µcluster_map[hash_]
                     for hash_ in index.intersection(self.bounding_box)
                     if µcluster_map[hash_] in µclusters
+                    and self.is_directly_connected(µcluster_map[hash_])
                 ]
             )
         elif self.context.density_index == SpatialIndexMethod.KDTREE:
@@ -133,8 +134,7 @@ class MicroCluster:
                 [
                     µcluster
                     for µcluster in µclusters
-                    if np.linalg.norm(µcluster.centroid - self.centroid, np.inf)
-                    < self.context.connected_radius
+                    if self.is_directly_connected(µcluster)
                 ]
             )
 

@@ -70,7 +70,7 @@ class DyCleeContext:
             be automatically updated at each timestep. Defaults to `False`.
          - `uncommon_dimensions: int`
             Number of dimensions to ignore for microcluster connectedness calculations.
-            Ignored if `density_method == SpatialIndexMethod.RTREE`. Defaults to `0`.
+            Defaults to `0`.
          - `forgetting_method: Optional[ForgettingMethod]`
             Function that will be applied to microclusters' element accumulators to
             "forget" older samples (as a function of time intervals). `None` implies
@@ -105,9 +105,7 @@ class DyCleeContext:
          - `density_index: Optional[SpatialIndexMethod]`
             See options for `distance_index`. If `SpatialIndexMethod.KDTREE` is
             selected for both stages, a single R*-tree is shared between the stages for
-            efficiency. Note that `uncommon_dimensions` will be treated as zero if
-            `SpatialIndexMethod.KDTREE` is selected, due to incompatibility.
-            Defaults to `SpatialIndexMethod.KDTREE`.
+            efficiency. Defaults to `SpatialIndexMethod.KDTREE`.
          - `store_elements: bool`
             Whether to store each input element in its corresponding microcluster.
             If `False`, microclusters only maintain accumulators of the required
@@ -149,15 +147,11 @@ class DyCleeContext:
         self.distance_index = distance_index
         self.density_index = density_index
         
-        if SpatialIndexMethod.RTREE in (distance_index, density_index):
-            if RTreeIndex is None:
-                raise ImportError("could not import Index from package rtree")
-            
-            if density_index == SpatialIndexMethod.RTREE and self.uncommon_dimensions:
-                warnings.warn(
-                    "ignoring uncommon_dimensions != 0 due to RTree setting",
-                    UnsupportedConfiguration
-                )
+        if (
+            SpatialIndexMethod.RTREE in (distance_index, density_index)
+            and RTreeIndex is None
+        ):
+            raise ImportError("could not import Index from package rtree")
         
         if (
             SpatialIndexMethod.KDTREE in (distance_index, density_index)
