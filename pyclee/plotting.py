@@ -51,7 +51,8 @@ class BasePlotter(ABC):
         self,
         dyclee: DyClee,
         ax: Optional[plt.Axes] = None,
-        colour_manager: Optional[ColourManager] = None
+        colour_manager: Optional[ColourManager] = None,
+        legend_loc='best'
     ):
         assert dyclee.context.n_features == 2, "plotting only supported for 2D data"
         
@@ -79,6 +80,8 @@ class BasePlotter(ABC):
             colour_manager = ColourManager()
         
         self.colour_manager = colour_manager
+        
+        self.legend_loc = legend_loc
     
     @abstractmethod
     def update(
@@ -130,9 +133,10 @@ class ElementPlotter(BasePlotter):
         dyclee: DyClee,
         ax: Optional[plt.Axes] = None,
         colour_manager: Optional[ColourManager] = None,
+        legend_loc='best',
         keep_eliminated: bool = True
     ):
-        super().__init__(dyclee, ax, colour_manager)
+        super().__init__(dyclee, ax, colour_manager, legend_loc)
         
         self.path_map: defaultdict[MicroCluster, list[PathCollection]] = defaultdict(
             list
@@ -164,7 +168,8 @@ class ElementPlotter(BasePlotter):
             order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
             self.ax.legend(
                 [self.path_map[clusters[i].µclusters[0]][0] for i in order],
-                [clusters[i].label for i in order]
+                [clusters[i].label for i in order],
+                loc=self.legend_loc
             )
         
         if unclustered is not None:
@@ -216,7 +221,7 @@ class ElementPlotter(BasePlotter):
             )
         
         labels = sorted(paths)
-        self.ax.legend([paths[label] for label in labels], labels)
+        self.ax.legend([paths[label] for label in labels], labels, loc=self.legend_loc)
 
 
 class BoundaryPlotter(BasePlotter):
@@ -226,9 +231,10 @@ class BoundaryPlotter(BasePlotter):
         self,
         dyclee: DyClee,
         ax: Optional[plt.Axes] = None,
-        colour_manager: Optional[ColourManager] = None
+        colour_manager: Optional[ColourManager] = None,
+        legend_loc='best'
     ):
-        super().__init__(dyclee, ax, colour_manager)
+        super().__init__(dyclee, ax, colour_manager, legend_loc)
         
         self.patch_map: dict[MicroCluster, PatchCollection] = {}
     
@@ -287,7 +293,8 @@ class BoundaryPlotter(BasePlotter):
                     )
                     for i in order
                 ],
-                [clusters[i].label for i in order]
+                [clusters[i].label for i in order],
+                loc=self.legend_loc
             )
         
         if unclustered is not None:
@@ -364,7 +371,8 @@ class BoundaryPlotter(BasePlotter):
                 )
                 for i in order
             ],
-            [clusters[i].label for i in order]
+            [clusters[i].label for i in order],
+            loc=self.legend_loc
         )
 
 
@@ -375,9 +383,10 @@ class CentroidPlotter(BasePlotter):
         self,
         dyclee: DyClee,
         ax: Optional[plt.Axes] = None,
-        colour_manager: Optional[ColourManager] = None
+        colour_manager: Optional[ColourManager] = None,
+        legend_loc='best'
     ):
-        super().__init__(dyclee, ax, colour_manager)
+        super().__init__(dyclee, ax, colour_manager, legend_loc)
         
         self.path_map: dict[Cluster, PathCollection] = {}
     
@@ -411,7 +420,8 @@ class CentroidPlotter(BasePlotter):
             order = sorted(range(len(clusters)), key=lambda i: clusters[i].label)
             self.ax.legend(
                 [self.path_map[clusters[i]] for i in order],
-                [clusters[i].label for i in order]
+                [clusters[i].label for i in order],
+                loc=self.legend_loc
             )
     
     def plot_snapshot(self, clusters: list[Cluster]):
@@ -429,7 +439,7 @@ class CentroidPlotter(BasePlotter):
             )
         
         labels = sorted(paths)
-        self.ax.legend([paths[label] for label in labels], labels)
+        self.ax.legend([paths[label] for label in labels], labels, loc=self.legend_loc)
 
 
 class MultiPlotter(BasePlotter):
@@ -438,6 +448,7 @@ class MultiPlotter(BasePlotter):
         dyclee: DyClee,
         axes: Optional[Union[Sequence[plt.Axes], plt.Axes]] = None,
         colour_manager: Optional[ColourManager] = None,
+        legend_loc='best',
         elements: bool = True,
         boundaries: bool = True,
         centroids: bool = True
@@ -465,17 +476,23 @@ class MultiPlotter(BasePlotter):
         
         if elements:
             self.plotters.append(
-                ElementPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
+                ElementPlotter(
+                    dyclee, self.axes[len(self.plotters)], colour_manager, legend_loc
+                )
             )
         
         if boundaries:
             self.plotters.append(
-                BoundaryPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
+                BoundaryPlotter(
+                    dyclee, self.axes[len(self.plotters)], colour_manager, legend_loc
+                )
             )
         
         if centroids:
             self.plotters.append(
-                CentroidPlotter(dyclee, self.axes[len(self.plotters)], colour_manager)
+                CentroidPlotter(
+                    dyclee, self.axes[len(self.plotters)], colour_manager, legend_loc
+                )
             )
     
     def update(

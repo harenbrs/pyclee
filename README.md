@@ -27,10 +27,10 @@ context = DyCleeContext(2, 0.06, bounds, store_elements=True)
 dy = DyClee(context)
 clusters = dy.run(X)
 
-MultiPlotter(dy).plot_snapshot(clusters)
+MultiPlotter(dy, legend_loc='upper left').plot_snapshot(clusters)
 ```
 
-![blobs](https://user-images.githubusercontent.com/1812261/105034730-ca6e2900-5a51-11eb-8bbf-374df5d687f4.png)
+![blobs](https://user-images.githubusercontent.com/1812261/105618503-cb9baf00-5ddf-11eb-9fff-2f1adc67d681.png)
 
 ### Dynamic ("concept drift")
 
@@ -40,10 +40,10 @@ context = DyCleeContext(2, 0.06, bounds, forgetting_method=ExponentialForgetting
 dy = DyClee(context)
 
 fig, ax = plt.subplots()
-MultiPlotter(dy, ax, centroids=False).animate(X)
+MultiPlotter(dy, ax).animate(X)  # Very slow
 ```
 
-![drift-16x](https://user-images.githubusercontent.com/1812261/105104294-e0a7d380-5aa9-11eb-9f16-0761a254d638.gif)
+![drift-16x](https://user-images.githubusercontent.com/1812261/105618363-28966580-5dde-11eb-8b7a-162e9715bf38.gif)
 
 
 ## TODO
