@@ -203,8 +203,8 @@ class DyClee:
         self.long_term_memory: Set[MicroCluster] = Set()
         self.eliminated: Set[MicroCluster] = Set()
         
-        self.next_µcluster_index = 0
-        self.next_class_label = 0
+        self.next_µcluster_index: int = 0
+        self.next_class_label: int = 0
         self.n_steps: int = 0
         self.last_partitioning_step: int = 0
         self.last_density_step: int = 0
