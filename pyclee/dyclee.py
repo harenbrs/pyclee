@@ -192,7 +192,6 @@ class DyCleeContext:
 class DyClee:
     """
     Implementation roughly as per https://doi.org/10.1016/j.patcog.2019.05.024.
-    A few apparent errors have been corrected, needing clarification from the authors.
     """
     
     def __init__(self, context: DyCleeContext):
@@ -331,7 +330,6 @@ class DyClee:
             
             # The R*-tree searches all microclusters regardless of precedence, so we
             # need to filter by priority after the index search
-            # TODO: maintain separate rtrees?
             if self.context.distance_index == SpatialIndexMethod.RTREE:
                 # Find nearest neighbour (will match multiple if at same distance)
                 matches: Set[MicroCluster] = Set(
@@ -463,7 +461,6 @@ class DyClee:
                 return µcluster
     
     def global_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
-        # NOTE: Deviates from the paper's apparently inconsistent Algorithm 2.
         clusters: list[Cluster] = []
         seen: Set[MicroCluster] = Set()
         
