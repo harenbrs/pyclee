@@ -327,88 +327,110 @@ class DyClee:
             
             return µcluster
         else:
-            closest: MicroCluster = None
+            closest: Optional[MicroCluster] = None
             
-            for candidate_µclusters in (
-                self.active_µclusters,
-                self.outlier_µclusters,
-                self.long_term_memory
-            ):
-                # First search actives, then others for reachable microclusters
-                
-                if not candidate_µclusters:
-                    continue
-                
-                if self.context.distance_index == SpatialIndexMethod.RTREE:
-                    matches: list[MicroCluster] = [
+            # The R*-tree searches all microclusters regardless of precedence, so we
+            # need to filter by priority after the index search
+            # TODO: maintain separate rtrees?
+            if self.context.distance_index == SpatialIndexMethod.RTREE:
+                # Find nearest neighbour (will match multiple if at same distance)
+                matches: Set[MicroCluster] = Set(
+                    [
                         self.µcluster_map[_hash]
                         for _hash in self.rtree.nearest((*element, *element), 1)
                         if self.µcluster_map[_hash].is_reachable(element)
-                        and self.µcluster_map[_hash] in candidate_µclusters
-                    ]  # TODO: maintain separate rtrees?
+                    ]
+                )
+                
+                for candidate_µclusters in (
+                    self.active_µclusters,
+                    self.outlier_µclusters,
+                    self.long_term_memory
+                ):
+                    # First match active microclusters, then others
                     
-                    if matches:
-                        closest = matches[
-                            np.argmax([µcluster.density(time) for µcluster in matches])
+                    candidate_matches = list(matches & candidate_µclusters)
+                    
+                    if candidate_matches:
+                        # Select highest-density microcluster
+                        closest = candidate_matches[
+                            np.argmax(
+                                [
+                                    µcluster.density(time)
+                                    for µcluster in candidate_matches
+                                ]
+                            )
                         ]
-                elif self.context.distance_index == SpatialIndexMethod.KDTREE:
-                    # Ensure predictable order for indexability
-                    candidate_µclusters = list(candidate_µclusters)
+                        break
+            else:
+                for candidate_µclusters in (
+                    self.active_µclusters,
+                    self.outlier_µclusters,
+                    self.long_term_memory
+                ):
+                    # First search actives, then others for reachable microclusters
                     
-                    candidate_centroids: np.ndarray = np.row_stack(
-                        [µcluster.centroid for µcluster in candidate_µclusters]
-                    ).reshape(len(candidate_µclusters), -1)
-                    
-                    # Find reachable microclusters (using L-inf norm)
-                    idcs, = KDTree(candidate_centroids, p=np.inf).query_radius(
-                        np.reshape(element, (1, -1)), self.context.reachable_radius
-                    )
-                    
-                    if not len(idcs):
+                    if not candidate_µclusters:
                         continue
                     
-                    min_dist = None
-                    
-                    # Find closest (L-1 norm) microcluster among the reachable ones
-                    for i in idcs:
-                        µcluster = candidate_µclusters[i]
-                        dist = µcluster.distance(element)
+                    if self.context.distance_index == SpatialIndexMethod.KDTREE:
+                        # Ensure predictable order for indexability
+                        candidate_µclusters = list(candidate_µclusters)
                         
-                        # Higher density is tie-breaker in case of equal distances
-                        if (
-                            closest is None
-                            or dist < min_dist
-                            or (
-                                dist == min_dist
-                                and µcluster.density(time) > closest.density(time)
-                            )
-                        ):
-                            closest = µcluster
-                            min_dist = dist
-                else:
-                    # Brute force
-                    min_dist = None
-                    
-                    for µcluster in candidate_µclusters:
-                        if not µcluster.is_reachable(element):
+                        candidate_centroids: np.ndarray = np.row_stack(
+                            [µcluster.centroid for µcluster in candidate_µclusters]
+                        ).reshape(len(candidate_µclusters), -1)
+                        
+                        # Find reachable microclusters (using L-inf norm)
+                        idcs, = KDTree(candidate_centroids, p=np.inf).query_radius(
+                            np.reshape(element, (1, -1)), self.context.reachable_radius
+                        )
+                        
+                        if not len(idcs):
                             continue
                         
-                        dist = µcluster.distance(element)
+                        min_dist = None
                         
-                        if (
-                            closest is None
-                            or dist < min_dist
-                            or (
-                                dist == min_dist
-                                and µcluster.density(time) > closest.density(time)
-                            )
-                        ):
-                            closest = µcluster
-                            min_dist = dist
-                
-                if closest is not None:
-                    # Match found, no need to check next set
-                    break
+                        # Find closest (L-1 norm) microcluster among the reachable ones
+                        for i in idcs:
+                            µcluster = candidate_µclusters[i]
+                            dist = µcluster.distance(element)
+                            
+                            # Higher density is tie-breaker in case of equal distances
+                            if (
+                                closest is None
+                                or dist < min_dist
+                                or (
+                                    dist == min_dist
+                                    and µcluster.density(time) > closest.density(time)
+                                )
+                            ):
+                                closest = µcluster
+                                min_dist = dist
+                    else:
+                        # Brute force
+                        min_dist = None
+                        
+                        for µcluster in candidate_µclusters:
+                            if not µcluster.is_reachable(element):
+                                continue
+                            
+                            dist = µcluster.distance(element)
+                            
+                            if (
+                                closest is None
+                                or dist < min_dist
+                                or (
+                                    dist == min_dist
+                                    and µcluster.density(time) > closest.density(time)
+                                )
+                            ):
+                                closest = µcluster
+                                min_dist = dist
+                    
+                    if closest is not None:
+                        # Match found, no need to check next set
+                        break
             
             if closest is not None:
                 if self.context.maintain_rtree:
