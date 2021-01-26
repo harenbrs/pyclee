@@ -46,8 +46,8 @@ class DyCleeContext:
         outlier_rejection: bool = True,
         sparse_rejection: bool = False,
         multi_density: bool = False,
-        partitioning_interval: Interval = 0.0,
-        density_interval: Interval = 1.0,
+        partitioning_interval: int = 1,
+        density_interval: int = 1,
         distance_index: Optional[SpatialIndexMethod] = SpatialIndexMethod.RTREE,
         density_index: Optional[SpatialIndexMethod] = SpatialIndexMethod.RTREE,
         store_elements: bool = False
@@ -84,16 +84,15 @@ class DyCleeContext:
             TODO. Defaults to `False`.
          - `multi_density: bool`
             TODO. Defaults to `False`.
-         - `partitioning_interval: Interval`
-            Controls how many timesteps pass between the partitioning step which groups
+         - `partitioning_interval: int`
+            Controls how many steps pass between the partitioning step which groups
             microclusters into dense, semi-dense and outlier groups and manages the
-            long-term memory (if configured) and elimination. Set to `0` to enforce
-            partitioning after every timestep, no matter how small. Defaults to `0.0`.
-         - `density_interval: Interval`
-            Controls how many timesteps pass between applications of the density-based
-            clustering stage. Increasing this may help with performance. Set to `0` to
-            enforce density-based clustering after every timestep, no matter how small.
-            Defaults to `1.0`.
+            long-term memory (if configured) and elimination. Set to `1` to partition
+            after every step. Defaults to `1`.
+         - `density_interval: int`
+            Controls how many steps pass between applications of the density-based
+            clustering stage. Increasing this may help with performance. Set to `1` to
+            enforce density-based clustering after every step. Defaults to `1`.
          - `distance_index: Optional[SpatialIndexMethod]`
             Which spatial indexing to use for the distance-based stage. The options are:
               - `SpatialIndexMethod.RTREE` (default): Maintains a single R*-tree which
@@ -207,8 +206,9 @@ class DyClee:
         
         self.next_µcluster_index = 0
         self.next_class_label = 0
-        self.last_partitioning_time: Optional[Timestamp] = None
-        self.last_density_time: Optional[Timestamp] = None
+        self.n_steps: int = 0
+        self.last_partitioning_step: int = 0
+        self.last_density_step: int = 0
         
         if self.context.maintain_rtree:
             p = RTreeProperty(dimension=self.context.n_features)
@@ -538,25 +538,24 @@ class DyClee:
         Optional[Set[MicroCluster]],
         Optional[Set[MicroCluster]]
     ]:
+        self.n_steps += 1
+        
         µcluster = self.distance_step(element, time)
         
         if (
-            self.last_partitioning_time is None
-            or time >= self.last_partitioning_time + self.context.partitioning_interval
+            self.n_steps
+            >= self.last_partitioning_step + self.context.partitioning_interval
         ):
             eliminated = self.update_density_partitions(time)
             
-            self.last_partitioning_time = time
+            self.last_partitioning_step = self.n_steps
         else:
             eliminated = None
         
-        if (
-            self.last_density_time is None
-            or time >= self.last_density_time + self.context.density_interval
-        ):
+        if self.n_steps >= self.last_density_step + self.context.density_interval:
             clusters, unclustered = self.density_step()
             
-            self.last_density_time = time
+            self.last_density_step = self.n_steps
         else:
             clusters = None
             unclustered = None
