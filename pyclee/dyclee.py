@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Sequence, Iterable, Union, Optional
-import warnings
 from itertools import count
 
 import numpy as np
@@ -22,14 +21,7 @@ except ImportError:
 
 from .clusters import MicroCluster, Cluster
 from .forgetting import ForgettingMethod, NoForgettingMethod
-from .types import (
-    Element,
-    Timestamp,
-    Interval,
-    Set,
-    UnsupportedConfiguration,
-    SpatialIndexMethod
-)
+from .types import Element, Timestamp, Set, SpatialIndexMethod
 
 
 class DyCleeContext:
