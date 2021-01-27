@@ -78,15 +78,14 @@ class MicroCluster:
         return np.linalg.norm(np.asarray(element) - self.centroid, 1)
     
     def is_reachable(self, element: Element) -> bool:
-        return (
-            np.linalg.norm(np.asarray(element) - self.centroid, np.inf)
-            < self.context.reachable_radius
+        return np.all(
+            abs(np.asarray(element) - self.centroid) < self.context.hyperbox_lengths/2
         )
     
     def is_directly_connected(self, other: MicroCluster) -> bool:
         return (
-            np.linalg.norm(other.centroid - self.centroid, np.inf)
-            < self.context.connected_radius
+            sum(abs(other.centroid - self.centroid) < self.context.hyperbox_lengths)
+            >= self.context.n_features - self.context.uncommon_dimensions
         )
     
     def get_neighbours(
@@ -122,12 +121,14 @@ class MicroCluster:
                 np.row_stack([µcluster.centroid for µcluster in µclusters]), p=np.inf
             )
             
-            # Neighbours are defined by the infinity norm
+            # Possible neighbours are defined by the infinity norm
             idcs, = tree.query_radius(
-                self.centroid.reshape(1, -1), self.context.connected_radius
+                self.centroid.reshape(1, -1), max(self.context.hyperbox_lengths)
             )
             
-            return Set([µclusters[i] for i in idcs])
+            return Set(
+                [µclusters[i] for i in idcs if self.is_directly_connected(µclusters[i])]
+            )
         else:
             # Brute force
             return Set(
