@@ -512,7 +512,7 @@ class DyClee:
             return self.global_density_step()
     
     def step(
-        self, element: Element, time: Timestamp
+        self, element: Element, time: Timestamp, skip_density_step: bool = False
     ) -> tuple[
         MicroCluster,
         Optional[list[Cluster]],
@@ -533,7 +533,10 @@ class DyClee:
         else:
             eliminated = None
         
-        if self.n_steps >= self.last_density_step + self.context.density_interval:
+        if (
+            not skip_density_step
+            and self.n_steps >= self.last_density_step + self.context.density_interval
+        ):
             clusters, unclustered = self.density_step()
             
             self.last_density_step = self.n_steps
@@ -548,16 +551,16 @@ class DyClee:
         elements: Iterable[Element],
         times: Optional[Iterable[Timestamp]] = None,
         progress: bool = True
-    ) -> Optional[list[Cluster]]:
+    ) -> list[Cluster]:
         if progress and tqdm is not None:
             elements = tqdm(elements)
         
         if times is None:
             times = count()
         
-        clusters = None
-        
         for element, time in zip(elements, times):
-            clusters = self.step(element, time)[1] or clusters
+            self.step(element, time, skip_density_step=True)
+        
+        clusters, _ = self.density_step()
         
         return clusters
