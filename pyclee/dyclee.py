@@ -540,7 +540,6 @@ class DyClee:
         else:
             clusters = None
             unclustered = None
-            eliminated = None
         
         return µcluster, clusters, unclustered, eliminated
     
