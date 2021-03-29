@@ -176,6 +176,7 @@ class DyCleeContext:
             np.diff(self.feature_ranges, axis=1).squeeze()
         )
         self.hyperbox_volume: float = np.product(self.hyperbox_lengths)
+        self.potentially_reachable_radius: float = np.max(self.hyperbox_lengths)/2
 
 
 class DyClee:
@@ -368,11 +369,12 @@ class DyClee:
                         
                         candidate_centroids: np.ndarray = np.row_stack(
                             [µcluster.centroid for µcluster in candidate_µclusters]
-                        ).reshape(len(candidate_µclusters), -1)
+                        )
                         
-                        # Find reachable microclusters (using L-inf norm)
+                        # Find potentially reachable microclusters (using L-inf norm)
                         idcs, = KDTree(candidate_centroids, p=np.inf).query_radius(
-                            np.reshape(element, (1, -1)), self.context.reachable_radius
+                            np.reshape(element, (1, -1)),
+                            self.context.potentially_reachable_radius
                         )
                         
                         if not len(idcs):
@@ -383,6 +385,10 @@ class DyClee:
                         # Find closest (L-1 norm) microcluster among the reachable ones
                         for i in idcs:
                             µcluster = candidate_µclusters[i]
+                            
+                            if not µcluster.is_reachable(element):
+                                continue
+                            
                             dist = µcluster.distance(element)
                             
                             # Higher density is tie-breaker in case of equal distances
