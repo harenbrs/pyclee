@@ -32,8 +32,9 @@ class MicroCluster:
         self.context = context
         self.index = index
         self.label = label
-        self.elements: Set[Element] = (
-            Set([tuple(element)]) if self.context.store_elements else Set()
+        self.times: list[Timestamp] = [time] if self.context.store_times else []
+        self.elements: list[Element] = (
+            [tuple(element)] if self.context.store_elements else []
         )
         self.once_dense = False
     
@@ -71,8 +72,11 @@ class MicroCluster:
         
         self.last_time = time
         
+        if self.context.store_times:
+            self.times.append(time)
+        
         if self.context.store_elements:
-            self.elements.add(tuple(element))
+            self.elements.append(tuple(element))
     
     def distance(self, element: Element) -> float:
         return np.linalg.norm(np.asarray(element) - self.centroid, 1)

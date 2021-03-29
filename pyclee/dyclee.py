@@ -42,6 +42,7 @@ class DyCleeContext:
         density_interval: int = 1,
         distance_index: Optional[SpatialIndexMethod] = SpatialIndexMethod.RTREE,
         density_index: Optional[SpatialIndexMethod] = SpatialIndexMethod.RTREE,
+        store_times: bool = False,
         store_elements: bool = False
     ):
         """
@@ -97,6 +98,9 @@ class DyCleeContext:
             See options for `distance_index`. If `SpatialIndexMethod.KDTREE` is
             selected for both stages, a single R*-tree is shared between the stages for
             efficiency. Defaults to `SpatialIndexMethod.KDTREE`.
+         - `store_times: bool`
+            Whether to store each input element's timestamp in its corresponding
+            microcluster. Defaults to `False`.
          - `store_elements: bool`
             Whether to store each input element in its corresponding microcluster.
             If `False`, microclusters only maintain accumulators of the required
@@ -154,6 +158,7 @@ class DyCleeContext:
             self.distance_index,
             self.density_index
         )
+        self.store_times = store_times
         self.store_elements = store_elements
     
     @property
