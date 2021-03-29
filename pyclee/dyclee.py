@@ -444,7 +444,9 @@ class DyClee:
                 
                 return µcluster
     
-    def global_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def global_density_step(
+        self, time: Timestamp
+    ) -> tuple[list[Cluster], Set[MicroCluster]]:
         clusters: list[Cluster] = []
         seen: Set[MicroCluster] = Set()
         
@@ -457,7 +459,7 @@ class DyClee:
             if µcluster.label is None:
                 µcluster.label = self.get_next_class_label()
             
-            cluster = Cluster(µcluster)
+            cluster = Cluster(µcluster, time)
             clusters.append(cluster)
             
             # Get dense and semi-dense directly connected neighbours
@@ -481,7 +483,7 @@ class DyClee:
                 
                 # Dense and semi-dense microclusters become part of the cluster
                 neighbour.label = µcluster.label
-                cluster.add(neighbour)
+                cluster.add(neighbour, time)
                 
                 # Semi-dense neighbours may only form the boundary
                 if neighbour not in self.dense_µclusters:
@@ -502,14 +504,16 @@ class DyClee:
         
         return clusters, unclustered
     
-    def local_density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def local_density_step(
+        self, time: Timestamp
+    ) -> tuple[list[Cluster], Set[MicroCluster]]:
         raise NotImplementedError("TODO")
     
-    def density_step(self) -> tuple[list[Cluster], Set[MicroCluster]]:
+    def density_step(self, time: Timestamp) -> tuple[list[Cluster], Set[MicroCluster]]:
         if self.context.multi_density:
-            return self.local_density_step()
+            return self.local_density_step(time)
         else:
-            return self.global_density_step()
+            return self.global_density_step(time)
     
     def step(
         self, element: Element, time: Timestamp, skip_density_step: bool = False
@@ -537,7 +541,7 @@ class DyClee:
             not skip_density_step
             and self.n_steps >= self.last_density_step + self.context.density_interval
         ):
-            clusters, unclustered = self.density_step()
+            clusters, unclustered = self.density_step(time)
             
             self.last_density_step = self.n_steps
         else:
@@ -561,6 +565,6 @@ class DyClee:
         for element, time in zip(elements, times):
             self.step(element, time, skip_density_step=True)
         
-        clusters, _ = self.density_step()
+        clusters, _ = self.density_step(time)
         
         return clusters
