@@ -317,17 +317,19 @@ class DyClee:
         else:
             closest: Optional[MicroCluster] = None
             
-            # The R*-tree searches all microclusters regardless of precedence, so we
-            # need to filter by priority after the index search
             if self.context.distance_index == SpatialIndexMethod.RTREE:
-                # Find nearest neighbour (will match multiple if at same distance)
+                # The R*-tree searches all microclusters regardless of precedence, so we
+                # need to filter by priority after the index search
+                
+                # Find all reachable microclusters
                 matches: Set[MicroCluster] = Set(
                     [
                         self.µcluster_map[hash_]
-                        for hash_ in self.rtree.nearest((*element, *element), 1)
-                        if self.µcluster_map[hash_].is_reachable(element)
+                        for hash_ in self.rtree.intersection((*element, *element))
                     ]
                 )
+                
+                min_dist = None
                 
                 for candidate_µclusters in (
                     self.active_µclusters,
@@ -336,19 +338,19 @@ class DyClee:
                 ):
                     # First match active microclusters, then others
                     
-                    candidate_matches = list(matches & candidate_µclusters)
-                    
-                    if candidate_matches:
-                        # Select highest-density microcluster
-                        closest = candidate_matches[
-                            np.argmax(
-                                [
-                                    µcluster.density(time)
-                                    for µcluster in candidate_matches
-                                ]
+                    for µcluster in matches & candidate_µclusters:
+                        dist = µcluster.distance(element)
+                        
+                        if (
+                            closest is None
+                            or dist < min_dist
+                            or (
+                                dist == min_dist
+                                and µcluster.density(time) > closest.density(time)
                             )
-                        ]
-                        break
+                        ):
+                            closest = µcluster
+                            min_dist = dist
             else:
                 for candidate_µclusters in (
                     self.active_µclusters,
