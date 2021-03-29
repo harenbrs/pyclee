@@ -95,7 +95,7 @@ class MicroCluster:
     def get_neighbours(
         self,
         µclusters: Iterable[MicroCluster],
-        index: Optional[RTreeIndex],
+        rtree_index: Optional[RTreeIndex],
         µcluster_map: Optional[dict[int, MicroCluster]]
     ) -> Set[MicroCluster]:
         µclusters = list(µclusters)
@@ -109,13 +109,13 @@ class MicroCluster:
         
         if (
             self.context.density_index == SpatialIndexMethod.RTREE
-            and index is not None
+            and rtree_index is not None
             and µcluster_map is not None
         ):
             return Set(
                 [
                     µcluster_map[hash_]
-                    for hash_ in index.intersection(self.bounding_box)
+                    for hash_ in rtree_index.intersection(self.bounding_box)
                     if µcluster_map[hash_] in µclusters
                     and self.is_directly_connected(µcluster_map[hash_])
                 ]

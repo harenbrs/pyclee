@@ -479,7 +479,7 @@ class DyClee:
             # Get dense and semi-dense directly connected neighbours
             connected = µcluster.get_neighbours(
                 (self.dense_µclusters | self.semidense_µclusters) - seen,
-                index=self.rtree,
+                rtree_index=self.rtree,
                 µcluster_map=self.µcluster_map
             )
             
@@ -507,7 +507,7 @@ class DyClee:
                 # and add to set of microclusters connected to the parent
                 connected |= neighbour.get_neighbours(
                     (self.dense_µclusters | self.semidense_µclusters) - seen,
-                    index=self.rtree,
+                    rtree_index=self.rtree,
                     µcluster_map=self.µcluster_map
                 )
         
