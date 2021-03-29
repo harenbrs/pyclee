@@ -323,9 +323,9 @@ class DyClee:
                 # Find nearest neighbour (will match multiple if at same distance)
                 matches: Set[MicroCluster] = Set(
                     [
-                        self.µcluster_map[_hash]
-                        for _hash in self.rtree.nearest((*element, *element), 1)
-                        if self.µcluster_map[_hash].is_reachable(element)
+                        self.µcluster_map[hash_]
+                        for hash_ in self.rtree.nearest((*element, *element), 1)
+                        if self.µcluster_map[hash_].is_reachable(element)
                     ]
                 )
                 
