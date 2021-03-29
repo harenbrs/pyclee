@@ -120,7 +120,7 @@ class DyCleeContext:
         
         self.hyperbox_fractions: np.ndarray = np.asarray(hyperbox_fractions)
         
-        self.feature_ranges = np.asarray(feature_ranges)
+        self.feature_ranges: np.ndarray = np.asarray(feature_ranges)
         
         self.update_ranges = update_ranges
         self.uncommon_dimensions = uncommon_dimensions
