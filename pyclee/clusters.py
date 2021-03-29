@@ -163,3 +163,11 @@ class Cluster:
             µcluster.centroid*µcluster.n_elements*µcluster.forgetting_factor(time)
         )
         self.n_elements += µcluster.n_elements*µcluster.forgetting_factor(time)
+    
+    @property
+    def times(self):
+        return sum([µ.times for µ in self.µclusters], [])
+    
+    @property
+    def elements(self):
+        return sum([µ.elements for µ in self.µclusters], [])
