@@ -125,9 +125,9 @@ class MicroCluster:
                 np.row_stack([µcluster.centroid for µcluster in µclusters]), p=np.inf
             )
             
-            # Possible neighbours are defined by the infinity norm
+            # Potential neighbours are defined by the infinity norm
             idcs, = tree.query_radius(
-                self.centroid.reshape(1, -1), max(self.context.hyperbox_lengths)
+                self.centroid.reshape(1, -1), self.context.potential_neighbour_radius
             )
             
             return Set(

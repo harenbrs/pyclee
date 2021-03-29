@@ -177,6 +177,7 @@ class DyCleeContext:
         )
         self.hyperbox_volume: float = np.product(self.hyperbox_lengths)
         self.potentially_reachable_radius: float = np.max(self.hyperbox_lengths)/2
+        self.potential_neighbour_radius: float = np.max(self.hyperbox_lengths)
 
 
 class DyClee:
